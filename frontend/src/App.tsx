@@ -4,7 +4,10 @@ import { AuthProvider } from './hooks/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
+import { Models } from './pages/Models';
+import { ModelCreate } from './pages/ModelCreate';
 
 const queryClient = new QueryClient();
 
@@ -16,11 +19,28 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/models"
+              element={
+                <ProtectedRoute>
+                  <Models />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/models/create"
+              element={
+                <ProtectedRoute>
+                  <ModelCreate />
                 </ProtectedRoute>
               }
             />

@@ -6,6 +6,7 @@ import {
   ServerIcon,
   FolderIcon,
   PlusIcon,
+  TableCellsIcon,
   DocumentTextIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
@@ -14,17 +15,17 @@ export function Dashboard() {
   const { user, logout } = useAuth();
 
   const stats = [
-    { name: 'Total Models', value: '0', icon: CircleStackIcon, color: 'from-blue-500 to-blue-600' },
-    { name: 'API Endpoints', value: '0', icon: CodeBracketIcon, color: 'from-purple-500 to-purple-600' },
-    { name: 'Database Size', value: '0 MB', icon: ServerIcon, color: 'from-green-500 to-green-600' },
-    { name: 'Active Projects', value: '1', icon: FolderIcon, color: 'from-orange-500 to-orange-600' },
+    { name: 'Total Models', value: '0', icon: CircleStackIcon, color: 'from-blue-500 to-blue-600', href: '/models' },
+    { name: 'API Endpoints', value: '0', icon: CodeBracketIcon, color: 'from-purple-500 to-purple-600', href: '#' },
+    { name: 'Database Size', value: '0 MB', icon: ServerIcon, color: 'from-green-500 to-green-600', href: '#' },
+    { name: 'Active Projects', value: '1', icon: FolderIcon, color: 'from-orange-500 to-orange-600', href: '#' },
   ];
 
   const quickActions = [
     { name: 'Create New Model', icon: PlusIcon, href: '/models/create', primary: true },
-    { name: 'View API Docs', icon: DocumentTextIcon, href: '/api-docs', primary: false },
-    { name: 'Database Explorer', icon: CircleStackIcon, href: '/database', primary: false },
-    { name: 'Settings', icon: Cog6ToothIcon, href: '/settings', primary: false },
+    { name: 'View All Models', icon: TableCellsIcon, href: '/models', primary: false },
+    { name: 'View API Docs', icon: DocumentTextIcon, href: '/docs/api', primary: false, external: true },
+    { name: 'Admin Panel', icon: Cog6ToothIcon, href: '/admin', primary: false, external: true },
   ];
 
   return (
@@ -33,10 +34,18 @@ export function Dashboard() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
+            <div className="flex items-center gap-6">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Digibase
               </h1>
+              <nav className="flex items-center gap-4">
+                <Link to="/dashboard" className="text-blue-600 font-medium">
+                  Dashboard
+                </Link>
+                <Link to="/models" className="text-gray-600 hover:text-gray-900">
+                  Models
+                </Link>
+              </nav>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-gray-600">Welcome, {user?.name}</span>
@@ -76,20 +85,37 @@ export function Dashboard() {
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {quickActions.map((action) => (
-              <Link
-                key={action.name}
-                to={action.href}
-                className={`flex flex-col items-center justify-center p-6 rounded-lg transition ${
-                  action.primary
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <action.icon className="h-8 w-8 mb-2" />
-                <span className="text-sm font-medium text-center">{action.name}</span>
-              </Link>
-            ))}
+            {quickActions.map((action) =>
+              action.external ? (
+                <a
+                  key={action.name}
+                  href={action.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex flex-col items-center justify-center p-6 rounded-lg transition ${
+                    action.primary
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <action.icon className="h-8 w-8 mb-2" />
+                  <span className="text-sm font-medium text-center">{action.name}</span>
+                </a>
+              ) : (
+                <Link
+                  key={action.name}
+                  to={action.href}
+                  className={`flex flex-col items-center justify-center p-6 rounded-lg transition ${
+                    action.primary
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <action.icon className="h-8 w-8 mb-2" />
+                  <span className="text-sm font-medium text-center">{action.name}</span>
+                </Link>
+              )
+            )}
           </div>
         </div>
 
