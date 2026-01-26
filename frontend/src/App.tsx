@@ -8,6 +8,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Models } from './pages/Models';
 import { ModelCreate } from './pages/ModelCreate';
+import { ModelDetail } from './pages/ModelDetail';
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ModelCreate />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/models/:id"
+              element={
+                <ProtectedRoute>
+                  <ModelDetail />
                 </ProtectedRoute>
               }
             />

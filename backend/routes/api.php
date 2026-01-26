@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DynamicDataController;
 use App\Http\Controllers\Api\DynamicModelController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,4 +21,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('models', DynamicModelController::class)->parameters([
         'models' => 'dynamicModel'
     ]);
+
+    // Dynamic Data API (Auto-generated CRUD for dynamic models)
+    Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
+    Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
+    Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
+    Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
+    Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
+    Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
 });
