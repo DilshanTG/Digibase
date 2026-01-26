@@ -8,7 +8,7 @@ import {
   PlusIcon,
   TableCellsIcon,
   DocumentTextIcon,
-  Cog6ToothIcon,
+  CloudIcon,
 } from '@heroicons/react/24/outline';
 
 export function Dashboard() {
@@ -16,16 +16,18 @@ export function Dashboard() {
 
   const stats = [
     { name: 'Total Models', value: '0', icon: CircleStackIcon, color: 'from-blue-500 to-blue-600', href: '/models' },
-    { name: 'API Endpoints', value: '0', icon: CodeBracketIcon, color: 'from-purple-500 to-purple-600', href: '#' },
-    { name: 'Database Size', value: '0 MB', icon: ServerIcon, color: 'from-green-500 to-green-600', href: '#' },
-    { name: 'Active Projects', value: '1', icon: FolderIcon, color: 'from-orange-500 to-orange-600', href: '#' },
+    { name: 'API Endpoints', value: '0', icon: CodeBracketIcon, color: 'from-purple-500 to-purple-600', href: '/models' },
+    { name: 'Storage', value: '0 MB', icon: CloudIcon, color: 'from-green-500 to-green-600', href: '/storage' },
+    { name: 'Database', value: 'Active', icon: ServerIcon, color: 'from-orange-500 to-orange-600', href: '/database' },
   ];
 
   const quickActions = [
     { name: 'Create New Model', icon: PlusIcon, href: '/models/create', primary: true },
     { name: 'View All Models', icon: TableCellsIcon, href: '/models', primary: false },
+    { name: 'File Storage', icon: CloudIcon, href: '/storage', primary: false },
+    { name: 'Database Explorer', icon: CircleStackIcon, href: '/database', primary: false },
     { name: 'View API Docs', icon: DocumentTextIcon, href: '/docs/api', primary: false, external: true },
-    { name: 'Admin Panel', icon: Cog6ToothIcon, href: '/admin', primary: false, external: true },
+    { name: 'Admin Panel', icon: FolderIcon, href: '/admin', primary: false, external: true },
   ];
 
   return (
@@ -44,6 +46,12 @@ export function Dashboard() {
                 </Link>
                 <Link to="/models" className="text-gray-600 hover:text-gray-900">
                   Models
+                </Link>
+                <Link to="/storage" className="text-gray-600 hover:text-gray-900">
+                  Storage
+                </Link>
+                <Link to="/database" className="text-gray-600 hover:text-gray-900">
+                  Database
                 </Link>
               </nav>
             </div>
@@ -84,7 +92,7 @@ export function Dashboard() {
         {/* Quick Actions */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {quickActions.map((action) =>
               action.external ? (
                 <a
