@@ -91,14 +91,50 @@ class StorageController extends Controller
     }
 
     /**
+     * Dangerous file extensions that should never be uploaded.
+     */
+    protected array $dangerousExtensions = [
+        'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar',
+        'exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'zsh',
+        'js', 'mjs', 'vbs', 'vbe', 'wsf', 'wsh',
+        'jar', 'jsp', 'jspx', 'asp', 'aspx', 'cer', 'csr',
+        'htaccess', 'htpasswd', 'ini', 'config',
+    ];
+
+    /**
+     * Allowed MIME types for upload.
+     */
+    protected array $allowedMimeTypes = [
+        // Images
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff',
+        // Documents
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain', 'text/csv', 'text/markdown',
+        // Archives
+        'application/zip', 'application/x-rar-compressed', 'application/gzip', 'application/x-7z-compressed',
+        // Audio
+        'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/webm',
+        // Video
+        'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo',
+        // Other
+        'application/json', 'application/xml', 'text/xml',
+    ];
+
+    /**
      * Upload a file.
      */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
             'file' => 'required|file|max:10240', // 10MB max
-            'bucket' => 'nullable|string|max:255',
-            'folder' => 'nullable|string|max:255',
+            'bucket' => 'nullable|string|max:255|regex:/^[a-zA-Z0-9_-]+$/',
+            'folder' => 'nullable|string|max:255|regex:/^[a-zA-Z0-9_\/-]+$/',
             'is_public' => 'nullable|boolean',
         ]);
 
@@ -107,14 +143,43 @@ class StorageController extends Controller
         $folder = $request->get('folder');
         $isPublic = $request->boolean('is_public', false);
 
-        // Generate unique filename
-        $extension = $uploadedFile->getClientOriginalExtension();
+        // Validate file extension
+        $extension = strtolower($uploadedFile->getClientOriginalExtension());
+        if (in_array($extension, $this->dangerousExtensions)) {
+            return response()->json([
+                'message' => 'File type not allowed for security reasons.',
+            ], 422);
+        }
+
+        // Validate MIME type
+        $mimeType = $uploadedFile->getMimeType();
+        if (!in_array($mimeType, $this->allowedMimeTypes)) {
+            return response()->json([
+                'message' => 'File type not allowed. Supported types: images, documents, audio, video, and archives.',
+            ], 422);
+        }
+
+        // Sanitize folder to prevent path traversal
+        if ($folder) {
+            // Remove any path traversal attempts
+            $folder = str_replace(['..', '\\'], '', $folder);
+            // Remove leading/trailing slashes and normalize
+            $folder = trim($folder, '/');
+            // Validate folder doesn't contain suspicious patterns
+            if (preg_match('/[<>:"|?*]/', $folder)) {
+                return response()->json([
+                    'message' => 'Invalid folder name.',
+                ], 422);
+            }
+        }
+
+        // Generate unique filename with sanitized extension
         $filename = Str::uuid() . '.' . $extension;
 
         // Build path
         $path = $bucket;
         if ($folder) {
-            $path .= '/' . trim($folder, '/');
+            $path .= '/' . $folder;
         }
         $path .= '/' . $filename;
 

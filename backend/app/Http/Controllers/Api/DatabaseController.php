@@ -12,29 +12,64 @@ use Illuminate\Support\Facades\Schema;
 class DatabaseController extends Controller
 {
     /**
-     * Get all tables in the database.
+     * System tables that should be hidden from regular users.
+     * These contain sensitive data that shouldn't be exposed.
+     */
+    protected array $protectedTables = [
+        'users',
+        'password_reset_tokens',
+        'personal_access_tokens',
+        'sessions',
+        'cache',
+        'cache_locks',
+        'jobs',
+        'job_batches',
+        'failed_jobs',
+        'migrations',
+        'roles',
+        'permissions',
+        'role_has_permissions',
+        'model_has_roles',
+        'model_has_permissions',
+    ];
+
+    /**
+     * Check if a table is protected/sensitive.
+     */
+    protected function isProtectedTable(string $tableName): bool
+    {
+        return in_array($tableName, $this->protectedTables);
+    }
+
+    /**
+     * Get all tables in the database (filters out protected system tables).
      */
     public function tables(Request $request): JsonResponse
     {
         $tables = Schema::getTables();
 
-        $tableInfo = collect($tables)->map(function ($table) {
-            $tableName = $table['name'];
+        $tableInfo = collect($tables)
+            ->filter(function ($table) {
+                // Filter out protected system tables
+                return !$this->isProtectedTable($table['name']);
+            })
+            ->map(function ($table) {
+                $tableName = $table['name'];
 
-            // Get row count
-            $rowCount = DB::table($tableName)->count();
+                // Get row count
+                $rowCount = DB::table($tableName)->count();
 
-            // Check if it's a dynamic model table
-            $dynamicModel = DynamicModel::where('table_name', $tableName)->first();
+                // Check if it's a dynamic model table
+                $dynamicModel = DynamicModel::where('table_name', $tableName)->first();
 
-            return [
-                'name' => $tableName,
-                'rows' => $rowCount,
-                'is_dynamic' => $dynamicModel !== null,
-                'dynamic_model_id' => $dynamicModel?->id,
-                'dynamic_model_name' => $dynamicModel?->display_name,
-            ];
-        })->values();
+                return [
+                    'name' => $tableName,
+                    'rows' => $rowCount,
+                    'is_dynamic' => $dynamicModel !== null,
+                    'dynamic_model_id' => $dynamicModel?->id,
+                    'dynamic_model_name' => $dynamicModel?->display_name,
+                ];
+            })->values();
 
         return response()->json(['data' => $tableInfo]);
     }
@@ -46,6 +81,11 @@ class DatabaseController extends Controller
     {
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table not found'], 404);
+        }
+
+        // Block access to protected system tables
+        if ($this->isProtectedTable($tableName)) {
+            return response()->json(['message' => 'Access to this table is restricted'], 403);
         }
 
         $columns = Schema::getColumns($tableName);
@@ -93,6 +133,11 @@ class DatabaseController extends Controller
     {
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table not found'], 404);
+        }
+
+        // Block access to protected system tables
+        if ($this->isProtectedTable($tableName)) {
+            return response()->json(['message' => 'Access to this table is restricted'], 403);
         }
 
         $perPage = min($request->get('per_page', 25), 100);
@@ -146,6 +191,21 @@ class DatabaseController extends Controller
     }
 
     /**
+     * Sanitize SQL by removing comments that could be used to bypass keyword detection.
+     */
+    protected function removeComments(string $sql): string
+    {
+        // Remove single-line comments (-- and #)
+        $sql = preg_replace('/--.*$/m', '', $sql);
+        $sql = preg_replace('/#.*$/m', '', $sql);
+
+        // Remove multi-line comments (/* */)
+        $sql = preg_replace('/\/\*[\s\S]*?\*\//', '', $sql);
+
+        return $sql;
+    }
+
+    /**
      * Execute a read-only SQL query.
      */
     public function query(Request $request): JsonResponse
@@ -156,21 +216,48 @@ class DatabaseController extends Controller
 
         $sql = trim($request->sql);
 
-        // Only allow SELECT queries for safety
-        if (!preg_match('/^\s*SELECT\s/i', $sql)) {
+        // Remove comments that could be used to bypass keyword detection
+        $sanitizedSql = $this->removeComments($sql);
+
+        // Normalize whitespace for better pattern matching
+        $normalizedSql = preg_replace('/\s+/', ' ', $sanitizedSql);
+
+        // Only allow SELECT queries for safety (must start with SELECT)
+        if (!preg_match('/^\s*SELECT\s/i', $normalizedSql)) {
             return response()->json([
                 'message' => 'Only SELECT queries are allowed',
             ], 400);
         }
 
         // Block dangerous keywords
-        $dangerous = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+        $dangerous = [
+            'INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE',
+            'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL', 'INTO OUTFILE',
+            'INTO DUMPFILE', 'LOAD_FILE', 'BENCHMARK', 'SLEEP', 'WAITFOR',
+        ];
         foreach ($dangerous as $keyword) {
-            if (preg_match('/\b' . $keyword . '\b/i', $sql)) {
+            // Use word boundary matching to catch keywords
+            if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $normalizedSql)) {
                 return response()->json([
                     'message' => "Query contains forbidden keyword: {$keyword}",
                 ], 400);
             }
+        }
+
+        // Block queries against protected tables
+        foreach ($this->protectedTables as $table) {
+            if (preg_match('/\b' . preg_quote($table, '/') . '\b/i', $normalizedSql)) {
+                return response()->json([
+                    'message' => "Access to table '{$table}' is restricted",
+                ], 403);
+            }
+        }
+
+        // Block multiple statements (semicolon followed by another statement)
+        if (preg_match('/;\s*\S/', $normalizedSql)) {
+            return response()->json([
+                'message' => 'Multiple statements are not allowed',
+            ], 400);
         }
 
         try {
