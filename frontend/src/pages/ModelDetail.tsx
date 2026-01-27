@@ -71,6 +71,11 @@ export function ModelDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Add field state
+  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
+  const [newFields, setNewFields] = useState<any[]>([]);
+  const [isAddingFields, setIsAddingFields] = useState(false);
+
   useEffect(() => {
     const fetchModel = async () => {
       try {
@@ -101,6 +106,20 @@ export function ModelDetail() {
     }
   };
 
+  const [fieldTypes, setFieldTypes] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchFieldTypes = async () => {
+      try {
+        const response = await api.get('/models/field-types');
+        setFieldTypes(response.data);
+      } catch (err) {
+        console.error('Failed to fetch field types');
+      }
+    };
+    fetchFieldTypes();
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'data' && model) {
       fetchData();
@@ -112,6 +131,73 @@ export function ModelDetail() {
     setCurrentRecord(record || null);
     setFormError('');
     setIsModalOpen(true);
+  };
+
+  const handleOpenAddFieldModal = () => {
+    setNewFields([{
+      name: '',
+      display_name: '',
+      type: 'string',
+      is_required: false,
+      is_unique: false,
+      is_searchable: true,
+      is_filterable: true,
+      is_sortable: true,
+      show_in_list: true,
+      show_in_detail: true,
+    }]);
+    setIsAddFieldModalOpen(true);
+  };
+
+  const handleAddNewFieldRow = () => {
+    setNewFields([...newFields, {
+      name: '',
+      display_name: '',
+      type: 'string',
+      is_required: false,
+      is_unique: false,
+      is_searchable: true,
+      is_filterable: true,
+      is_sortable: true,
+      show_in_list: true,
+      show_in_detail: true,
+    }]);
+  };
+
+  const handleRemoveNewFieldRow = (index: number) => {
+    setNewFields(newFields.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateNewField = (index: number, updates: any) => {
+    const updated = [...newFields];
+    updated[index] = { ...updated[index], ...updates };
+
+    // Auto-generate name from display_name if name is empty or matched previous display_name
+    if (updates.display_name !== undefined) {
+      const snakeName = updates.display_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      updated[index].name = snakeName;
+    }
+
+    setNewFields(updated);
+  };
+
+  const handleSubmitNewFields = async () => {
+    if (!model) return;
+    setIsAddingFields(true);
+    setFormError('');
+    try {
+      await api.post(`/models/${model.id}/fields`, { fields: newFields });
+
+      // Refresh model
+      const response = await api.get(`/models/${id}`);
+      setModel(response.data);
+
+      setIsAddFieldModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.response?.data?.message || 'Failed to add fields');
+    } finally {
+      setIsAddingFields(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -340,7 +426,16 @@ const response = await fetch('/api/data/${tableName}', {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold text-[#ededed] mb-4">Fields</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-[#ededed]">Fields</h3>
+                    <button
+                      onClick={handleOpenAddFieldModal}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3ecf8e]/10 text-[#3ecf8e] text-xs font-semibold rounded-md hover:bg-[#3ecf8e]/20 transition-all"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add Column
+                    </button>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
                       <thead>
@@ -697,6 +792,128 @@ const response = await fetch('/api/data/${tableName}', {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Fields Modal */}
+      {isAddFieldModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-slideUp">
+            <div className="flex items-center justify-between p-6 border-b border-[#3a3a3a]">
+              <div>
+                <h3 className="text-xl font-semibold text-[#ededed]">Add New Columns</h3>
+                <p className="text-sm text-[#6b6b6b]">Extend your model with more fields</p>
+              </div>
+              <button
+                onClick={() => setIsAddFieldModalOpen(false)}
+                className="p-2 text-[#6b6b6b] hover:text-[#ededed]"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6">
+              <div className="space-y-4">
+                {newFields.map((field, idx) => (
+                  <div key={idx} className="bg-[#323232] border border-[#3a3a3a] rounded-lg p-4 relative group animate-fadeIn">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-[#6b6b6b] uppercase mb-1">Display Name</label>
+                        <input
+                          type="text"
+                          value={field.display_name}
+                          onChange={(e) => handleUpdateNewField(idx, { display_name: e.target.value })}
+                          className="w-full bg-[#1c1c1c] border border-[#3a3a3a] text-[#ededed] rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3ecf8e] outline-none"
+                          placeholder="e.g. Price"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#6b6b6b] uppercase mb-1">Field Name (ID)</label>
+                        <input
+                          type="text"
+                          value={field.name}
+                          onChange={(e) => handleUpdateNewField(idx, { name: e.target.value })}
+                          className="w-full bg-[#1c1c1c] border border-[#3a3a3a] text-[#ededed] rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3ecf8e] outline-none"
+                          placeholder="e.g. price"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#6b6b6b] uppercase mb-1">Type</label>
+                        <select
+                          value={field.type}
+                          onChange={(e) => handleUpdateNewField(idx, { type: e.target.value })}
+                          className="w-full bg-[#1c1c1c] border border-[#3a3a3a] text-[#ededed] rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3ecf8e] outline-none"
+                        >
+                          {fieldTypes.map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-end gap-3 pb-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={field.is_required}
+                            onChange={(e) => handleUpdateNewField(idx, { is_required: e.target.checked })}
+                            className="w-4 h-4 rounded border-[#3a3a3a] bg-[#1c1c1c] text-[#3ecf8e] focus:ring-0"
+                          />
+                          <span className="text-xs text-[#ededed]">Required</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={field.is_unique}
+                            onChange={(e) => handleUpdateNewField(idx, { is_unique: e.target.checked })}
+                            className="w-4 h-4 rounded border-[#3a3a3a] bg-[#1c1c1c] text-[#3ecf8e] focus:ring-0"
+                          />
+                          <span className="text-xs text-[#ededed]">Unique</span>
+                        </label>
+
+                        {newFields.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveNewFieldRow(idx)}
+                            className="ml-auto p-1.5 text-[#6b6b6b] hover:text-red-400 hover:bg-red-400/10 rounded transition-all"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleAddNewFieldRow}
+                className="w-full mt-4 py-3 border-2 border-dashed border-[#3a3a3a] rounded-lg text-[#6b6b6b] hover:text-[#3ecf8e] hover:border-[#3ecf8e]/50 hover:bg-[#3ecf8e]/5 transition-all text-sm font-medium flex items-center justify-center gap-2"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Add Another Column
+              </button>
+            </div>
+
+            <div className="p-6 border-t border-[#3a3a3a] bg-[#1c1c1c]/50 flex gap-4">
+              <button
+                onClick={() => setIsAddFieldModalOpen(false)}
+                className="flex-1 px-4 py-2 text-[#a1a1a1] bg-[#323232] rounded-md hover:bg-[#3a3a3a] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitNewFields}
+                disabled={isAddingFields || newFields.some(f => !f.name || !f.display_name)}
+                className="flex-[2] px-4 py-2 bg-[#3ecf8e] hover:bg-[#24b47e] text-black font-semibold rounded-md transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-[#3ecf8e]/10"
+              >
+                {isAddingFields ? (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    Updating Schema...
+                  </>
+                ) : (
+                  'Save & Update Database'
+                )}
+              </button>
             </div>
           </div>
         </div>

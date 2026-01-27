@@ -45,10 +45,10 @@ class StorageFile extends Model
     public function getUrlAttribute(): string
     {
         if ($this->is_public) {
-            return Storage::disk($this->disk)->url($this->path);
+            return '/storage/' . $this->path;
         }
 
-        return route('storage.download', $this->id);
+        return '/api/storage/' . $this->id . '/download';
     }
 
     /**

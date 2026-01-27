@@ -9,7 +9,9 @@ import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
-  CommandLineIcon
+  CommandLineIcon,
+  CodeBracketIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline';
 import { useState, type ReactNode } from 'react';
 
@@ -22,6 +24,8 @@ const navigation = [
   { name: 'Models', href: '/models', icon: CubeIcon },
   { name: 'Database', href: '/database', icon: CircleStackIcon },
   { name: 'Storage', href: '/storage', icon: FolderIcon },
+  { name: 'Users', href: '/users', icon: UsersIcon },
+  { name: 'Code Generator', href: '/code-generator', icon: CodeBracketIcon },
   { name: 'API Docs', href: '/api-docs', icon: CommandLineIcon },
 ];
 
@@ -76,8 +80,8 @@ export function Layout({ children }: LayoutProps) {
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 animate-slideIn ${active
-                    ? 'bg-[#2a2a2a] text-white'
-                    : 'text-[#a1a1a1] hover:bg-[#2a2a2a]/50 hover:text-white'
+                  ? 'bg-[#2a2a2a] text-white'
+                  : 'text-[#a1a1a1] hover:bg-[#2a2a2a]/50 hover:text-white'
                   }`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >

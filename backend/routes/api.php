@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('models', DynamicModelController::class)->parameters([
         'models' => 'dynamicModel'
     ]);
+    Route::post('/models/{dynamicModel}/fields', [DynamicModelController::class, 'addFields']);
 
     // Dynamic Data API (Auto-generated CRUD for dynamic models)
     Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
@@ -51,4 +52,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/database/tables/{tableName}/rows/{id}', [DatabaseController::class, 'updateRow']);
     Route::delete('/database/tables/{tableName}/rows/{id}', [DatabaseController::class, 'deleteRow']);
     Route::post('/database/query', [DatabaseController::class, 'query']);
+    // Code Generator
+    Route::post('/code/generate', [\App\Http\Controllers\Api\CodeGeneratorController::class, 'generate']);
+
+    // User Management
+    Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+    
+    // Role & Permission Management
+    Route::get('/permissions', [\App\Http\Controllers\Api\RoleController::class, 'permissions']);
+    Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);
 });

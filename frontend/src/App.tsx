@@ -13,6 +13,8 @@ import { Storage } from './pages/Storage';
 import { Database } from './pages/Database';
 
 import { ApiDocs } from './pages/ApiDocs';
+import { CodeGenerator } from './pages/CodeGenerator';
+import { Users } from './pages/Users';
 
 const queryClient = new QueryClient();
 
@@ -62,6 +64,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ApiDocs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <Users />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/code-generator"
+              element={
+                <ProtectedRoute>
+                  <CodeGenerator />
                 </ProtectedRoute>
               }
             />

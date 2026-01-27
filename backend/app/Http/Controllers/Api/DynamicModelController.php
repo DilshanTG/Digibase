@@ -223,6 +223,136 @@ class DynamicModelController extends Controller
     }
 
     /**
+     * Add new fields to an existing model and update the database table.
+     */
+    public function addFields(Request $request, DynamicModel $dynamicModel): JsonResponse
+    {
+        if ($dynamicModel->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'fields' => 'required|array|min:1',
+            'fields.*.name' => 'required|string|max:255|regex:/^[a-z][a-z0-9_]*$/',
+            'fields.*.display_name' => 'required|string|max:255',
+            'fields.*.type' => 'required|string|in:string,text,richtext,integer,float,decimal,boolean,date,datetime,time,json,enum,select,email,url,phone,slug,uuid,file,image',
+            'fields.*.description' => 'nullable|string',
+            'fields.*.is_required' => 'boolean',
+            'fields.*.is_unique' => 'boolean',
+            'fields.*.is_indexed' => 'boolean',
+            'fields.*.is_searchable' => 'boolean',
+            'fields.*.is_filterable' => 'boolean',
+            'fields.*.is_sortable' => 'boolean',
+            'fields.*.show_in_list' => 'boolean',
+            'fields.*.show_in_detail' => 'boolean',
+            'fields.*.default_value' => 'nullable|string',
+            'fields.*.options' => 'nullable|array',
+        ]);
+
+        // Check if any field already exists
+        $existingFieldNames = $dynamicModel->fields()->pluck('name')->toArray();
+        foreach ($validated['fields'] as $fieldData) {
+            if (in_array($fieldData['name'], $existingFieldNames)) {
+                return response()->json([
+                    'message' => "Field '{$fieldData['name']}' already exists on this model."
+                ], 422);
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $newFields = [];
+            $lastOrder = $dynamicModel->fields()->max('order') ?? -1;
+
+            foreach ($validated['fields'] as $index => $fieldData) {
+                $field = DynamicField::create([
+                    'dynamic_model_id' => $dynamicModel->id,
+                    'name' => $fieldData['name'],
+                    'display_name' => $fieldData['display_name'],
+                    'type' => $fieldData['type'],
+                    'description' => $fieldData['description'] ?? null,
+                    'is_required' => $fieldData['is_required'] ?? false,
+                    'is_unique' => $fieldData['is_unique'] ?? false,
+                    'is_indexed' => $fieldData['is_indexed'] ?? false,
+                    'is_searchable' => $fieldData['is_searchable'] ?? true,
+                    'is_filterable' => $fieldData['is_filterable'] ?? true,
+                    'is_sortable' => $fieldData['is_sortable'] ?? true,
+                    'show_in_list' => $fieldData['show_in_list'] ?? true,
+                    'show_in_detail' => $fieldData['show_in_detail'] ?? true,
+                    'default_value' => $fieldData['default_value'] ?? null,
+                    'options' => $fieldData['options'] ?? null,
+                    'order' => $lastOrder + $index + 1,
+                ]);
+                $newFields[] = $field;
+            }
+
+            // Generate "add columns" migration
+            $this->generateAddColumnsMigration($dynamicModel, $newFields);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Fields added successfully',
+                'model' => $dynamicModel->load('fields')
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to add fields: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate migration for adding columns to an existing table.
+     */
+    protected function generateAddColumnsMigration(DynamicModel $model, array $newFields): void
+    {
+        $tableName = $model->table_name;
+        $fieldDefinitions = '';
+        foreach ($newFields as $field) {
+            $fieldDefinitions .= $this->buildFieldDefinition($field);
+        }
+
+        $migrationContent = <<<PHP
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            {$fieldDefinitions}
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('{$tableName}', function (Blueprint \$table) {
+            // Rollback not fully supported for dynamic additions yet
+        });
+    }
+};
+PHP;
+
+        $migrationName = date('Y_m_d_His') . '_add_columns_to_' . $tableName . '_table.php';
+        $migrationPath = database_path('migrations/' . $migrationName);
+
+        file_put_contents($migrationPath, $migrationContent);
+
+        // Run the migration
+        Artisan::call('migrate', [
+            '--path' => 'database/migrations/' . $migrationName,
+            '--force' => true,
+        ]);
+    }
+
+    /**
      * Generate migration for a model.
      */
     protected function generateMigration(DynamicModel $model): void

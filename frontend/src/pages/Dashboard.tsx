@@ -42,8 +42,8 @@ export function Dashboard() {
           api.get('/storage/stats'),
         ]);
 
-        const models = modelsRes.data.data || [];
-        setRecentModels(models.slice(0, 5));
+        const models = modelsRes.data.data || modelsRes.data || [];
+        setRecentModels(Array.isArray(models) ? models.slice(0, 5) : []);
 
         setStats({
           models: models.length,

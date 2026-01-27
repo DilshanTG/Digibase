@@ -123,7 +123,8 @@ class StorageController extends Controller
         // Video
         'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo',
         // Other
-        'application/json', 'application/xml', 'text/xml',
+        'application/json', 'application/xml', 'text/xml', 'application/octet-stream',
+        'image/x-icon', 'image/vnd.microsoft.icon', 'application/zip', 'application/x-zip-compressed'
     ];
 
     /**
@@ -176,23 +177,28 @@ class StorageController extends Controller
         // Generate unique filename with sanitized extension
         $filename = Str::uuid() . '.' . $extension;
 
-        // Build path
-        $path = $bucket;
+        // Build directory path
+        $directory = $bucket;
         if ($folder) {
-            $path .= '/' . $folder;
+            $directory .= '/' . $folder;
         }
-        $path .= '/' . $filename;
 
-        // Store file
+        // Store file using Laravel's file handling
         $disk = $isPublic ? 'public' : 'local';
-        Storage::disk($disk)->put($path, file_get_contents($uploadedFile));
+        $fullPath = Storage::disk($disk)->putFileAs($directory, $uploadedFile, $filename);
+
+        if (!$fullPath) {
+            return response()->json([
+                'message' => 'Failed to store file on disk.',
+            ], 500);
+        }
 
         // Create record
         $storageFile = StorageFile::create([
             'user_id' => $request->user()->id,
             'name' => $filename,
             'original_name' => $uploadedFile->getClientOriginalName(),
-            'path' => $path,
+            'path' => $fullPath,
             'disk' => $disk,
             'mime_type' => $uploadedFile->getMimeType(),
             'size' => $uploadedFile->getSize(),
