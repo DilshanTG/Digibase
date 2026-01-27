@@ -94,7 +94,7 @@ export function Storage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bucket', selectedBucket || 'default');
-    formData.append('is_public', 'false');
+    formData.append('is_public', 'true');
 
     try {
       await api.post('/storage', formData, {
