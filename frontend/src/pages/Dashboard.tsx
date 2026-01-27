@@ -95,7 +95,7 @@ export function Dashboard() {
       label: 'Files Stored',
       value: stats?.files || 0,
       icon: FolderIcon,
-      color: 'from-purple-500 to-purple-600',
+      color: 'from-teal-500 to-teal-600',
       href: '/storage',
     },
     {
@@ -130,26 +130,26 @@ export function Dashboard() {
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
             : statCards.map((stat, index) => (
-                <Link
-                  key={stat.label}
-                  to={stat.href}
-                  className="group bg-[#2a2a2a] border border-[#3a3a3a] hover:border-[#4a4a4a] rounded-lg p-5 transition-all duration-200 animate-slideUp"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div
-                      className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center`}
-                    >
-                      <stat.icon className="w-5 h-5 text-white" />
-                    </div>
-                    <ArrowRightIcon className="w-4 h-4 text-[#6b6b6b] group-hover:text-[#a1a1a1] group-hover:translate-x-1 transition-all duration-200" />
+              <Link
+                key={stat.label}
+                to={stat.href}
+                className="group bg-[#2a2a2a] border border-[#3a3a3a] hover:border-[#4a4a4a] rounded-lg p-5 transition-all duration-200 animate-slideUp"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-start justify-between">
+                  <div
+                    className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center`}
+                  >
+                    <stat.icon className="w-5 h-5 text-white" />
                   </div>
-                  <div className="mt-4">
-                    <p className="text-[#6b6b6b] text-sm">{stat.label}</p>
-                    <p className="text-2xl font-semibold text-[#ededed] mt-1">{stat.value}</p>
-                  </div>
-                </Link>
-              ))}
+                  <ArrowRightIcon className="w-4 h-4 text-[#6b6b6b] group-hover:text-[#a1a1a1] group-hover:translate-x-1 transition-all duration-200" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-[#6b6b6b] text-sm">{stat.label}</p>
+                  <p className="text-2xl font-semibold text-[#ededed] mt-1">{stat.value}</p>
+                </div>
+              </Link>
+            ))}
         </div>
 
         {/* Content Grid */}
@@ -240,8 +240,8 @@ export function Dashboard() {
                 to="/storage"
                 className="flex items-center gap-3 p-3 rounded-md text-[#a1a1a1] hover:text-white hover:bg-[#323232] transition-all duration-200"
               >
-                <div className="w-8 h-8 rounded-md bg-purple-500/10 flex items-center justify-center">
-                  <FolderIcon className="w-4 h-4 text-purple-500" />
+                <div className="w-8 h-8 rounded-md bg-teal-500/10 flex items-center justify-center">
+                  <FolderIcon className="w-4 h-4 text-teal-500" />
                 </div>
                 <span className="text-sm font-medium">File Storage</span>
               </Link>

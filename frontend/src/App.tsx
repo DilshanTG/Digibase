@@ -12,6 +12,8 @@ import { ModelDetail } from './pages/ModelDetail';
 import { Storage } from './pages/Storage';
 import { Database } from './pages/Database';
 
+import { ApiDocs } from './pages/ApiDocs';
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -52,6 +54,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ModelDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/api-docs"
+              element={
+                <ProtectedRoute>
+                  <ApiDocs />
                 </ProtectedRoute>
               }
             />

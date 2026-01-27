@@ -196,8 +196,8 @@ export function ModelCreate() {
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
-          err.response?.data?.errors?.name?.[0] ||
-          'Failed to create model'
+        err.response?.data?.errors?.name?.[0] ||
+        'Failed to create model'
       );
     } finally {
       setIsLoading(false);
@@ -205,32 +205,32 @@ export function ModelCreate() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-[#1c1c1c]">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-[#171717] border-b border-[#2a2a2a]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-6">
               <Link to="/dashboard">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                   Digibase
                 </h1>
               </Link>
               <nav className="flex items-center gap-4">
-                <Link to="/dashboard" className="text-gray-600 hover:text-gray-900">
+                <Link to="/dashboard" className="text-[#a1a1a1] hover:text-white transition-colors">
                   Dashboard
                 </Link>
-                <Link to="/models" className="text-gray-600 hover:text-gray-900">
+                <Link to="/models" className="text-[#a1a1a1] hover:text-white transition-colors">
                   Models
                 </Link>
-                <span className="text-blue-600 font-medium">Create</span>
+                <span className="text-[#3ecf8e] font-medium">Create</span>
               </nav>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-gray-600">Welcome, {user?.name}</span>
+              <span className="text-[#a1a1a1]">Welcome, {user?.name}</span>
               <button
                 onClick={logout}
-                className="text-gray-600 hover:text-gray-900 font-medium"
+                className="text-[#a1a1a1] hover:text-white font-medium transition-colors"
               >
                 Logout
               </button>
@@ -244,15 +244,15 @@ export function ModelCreate() {
         <div className="flex items-center gap-4 mb-8">
           <Link
             to="/models"
-            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition"
+            className="p-2 text-[#a1a1a1] hover:text-white hover:bg-[#2a2a2a] rounded-lg transition"
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </Link>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-[#ededed]">
               Create New Model
             </h2>
-            <p className="text-gray-600 mt-1">
+            <p className="text-[#a1a1a1] mt-1">
               Define your model structure and fields
             </p>
           </div>
@@ -260,15 +260,15 @@ export function ModelCreate() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-6">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Model Settings */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-[#ededed] mb-4">
               Model Settings
             </h3>
 
@@ -276,7 +276,7 @@ export function ModelCreate() {
               <div>
                 <label
                   htmlFor="displayName"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-medium text-[#a1a1a1] mb-2"
                 >
                   Display Name
                 </label>
@@ -285,7 +285,7 @@ export function ModelCreate() {
                   type="text"
                   value={displayName}
                   onChange={(e) => handleDisplayNameChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent placeholder-[#6b6b6b]"
                   placeholder="e.g., Blog Post"
                   required
                 />
@@ -294,7 +294,7 @@ export function ModelCreate() {
               <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-medium text-[#a1a1a1] mb-2"
                 >
                   Model Name
                 </label>
@@ -303,12 +303,12 @@ export function ModelCreate() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                  className="w-full px-4 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent placeholder-[#6b6b6b]"
                   placeholder="e.g., BlogPost"
                   required
                   pattern="^[a-zA-Z][a-zA-Z0-9]*$"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-[#6b6b6b] mt-1">
                   PascalCase, no spaces or special characters
                 </p>
               </div>
@@ -316,7 +316,7 @@ export function ModelCreate() {
               <div className="md:col-span-2">
                 <label
                   htmlFor="description"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-medium text-[#a1a1a1] mb-2"
                 >
                   Description (Optional)
                 </label>
@@ -324,7 +324,7 @@ export function ModelCreate() {
                   id="description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent placeholder-[#6b6b6b]"
                   placeholder="Brief description of this model"
                   rows={2}
                 />
@@ -332,48 +332,48 @@ export function ModelCreate() {
             </div>
 
             {/* Options */}
-            <div className="mt-6 pt-6 border-t">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Options</h4>
+            <div className="mt-6 pt-6 border-t border-[#3a3a3a]">
+              <h4 className="text-sm font-medium text-[#ededed] mb-3">Options</h4>
               <div className="flex flex-wrap gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={hasTimestamps}
                     onChange={(e) => setHasTimestamps(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                   />
-                  <span className="text-sm text-gray-700">Add timestamps</span>
+                  <span className="text-sm text-[#a1a1a1]">Add timestamps</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={hasSoftDeletes}
                     onChange={(e) => setHasSoftDeletes(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                   />
-                  <span className="text-sm text-gray-700">Soft deletes</span>
+                  <span className="text-sm text-[#a1a1a1]">Soft deletes</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={generateApi}
                     onChange={(e) => setGenerateApi(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                   />
-                  <span className="text-sm text-gray-700">Generate API</span>
+                  <span className="text-sm text-[#a1a1a1]">Generate API</span>
                 </label>
               </div>
             </div>
           </div>
 
           {/* Fields */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Fields</h3>
+              <h3 className="text-lg font-semibold text-[#ededed]">Fields</h3>
               <button
                 type="button"
                 onClick={addField}
-                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
+                className="flex items-center gap-1 text-[#3ecf8e] hover:text-[#24b47e] font-medium text-sm transition-colors"
               >
                 <PlusIcon className="h-4 w-4" />
                 Add Field
@@ -384,11 +384,11 @@ export function ModelCreate() {
               {fields.map((field, index) => (
                 <div
                   key={field.id}
-                  className="border border-gray-200 rounded-lg overflow-hidden"
+                  className="border border-[#3a3a3a] rounded-lg overflow-hidden"
                 >
                   {/* Field Header */}
                   <div
-                    className="flex items-center gap-3 p-4 bg-gray-50 cursor-pointer"
+                    className="flex items-center gap-3 p-4 bg-[#323232] cursor-pointer hover:bg-[#3a3a3a] transition-colors"
                     onClick={() =>
                       setExpandedField(
                         expandedField === field.id ? null : field.id
@@ -403,7 +403,7 @@ export function ModelCreate() {
                           moveField(index, 'up');
                         }}
                         disabled={index === 0}
-                        className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                        className="p-1 text-[#6b6b6b] hover:text-[#ededed] disabled:opacity-30"
                       >
                         <ChevronUpIcon className="h-4 w-4" />
                       </button>
@@ -414,7 +414,7 @@ export function ModelCreate() {
                           moveField(index, 'down');
                         }}
                         disabled={index === fields.length - 1}
-                        className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                        className="p-1 text-[#6b6b6b] hover:text-[#ededed] disabled:opacity-30"
                       >
                         <ChevronDownIcon className="h-4 w-4" />
                       </button>
@@ -428,7 +428,7 @@ export function ModelCreate() {
                           handleFieldDisplayNameChange(field.id, e.target.value)
                         }
                         onClick={(e) => e.stopPropagation()}
-                        className="px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm placeholder-[#6b6b6b]"
                         placeholder="Display Name"
                         required
                       />
@@ -439,7 +439,7 @@ export function ModelCreate() {
                           updateField(field.id, { name: e.target.value })
                         }
                         onClick={(e) => e.stopPropagation()}
-                        className="px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-gray-50"
+                        className="px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm placeholder-[#6b6b6b]"
                         placeholder="field_name"
                         required
                         pattern="^[a-z][a-z0-9_]*$"
@@ -450,7 +450,7 @@ export function ModelCreate() {
                           updateField(field.id, { type: e.target.value })
                         }
                         onClick={(e) => e.stopPropagation()}
-                        className="px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm"
                       >
                         {fieldTypes.map((type) => (
                           <option key={type.value} value={type.value}>
@@ -462,7 +462,7 @@ export function ModelCreate() {
 
                     <div className="flex items-center gap-2">
                       {field.is_required && (
-                        <span className="text-xs text-red-600 font-medium">
+                        <span className="text-xs text-red-400 font-medium">
                           Required
                         </span>
                       )}
@@ -473,7 +473,7 @@ export function ModelCreate() {
                           removeField(field.id);
                         }}
                         disabled={fields.length === 1}
-                        className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-30"
+                        className="p-1 text-[#6b6b6b] hover:text-red-400 disabled:opacity-30"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -482,9 +482,9 @@ export function ModelCreate() {
 
                   {/* Field Details (Expanded) */}
                   {expandedField === field.id && (
-                    <div className="p-4 border-t space-y-4">
+                    <div className="p-4 border-t border-[#3a3a3a] bg-[#2a2a2a] space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-[#a1a1a1] mb-1">
                           Description
                         </label>
                         <input
@@ -495,7 +495,7 @@ export function ModelCreate() {
                               description: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm placeholder-[#6b6b6b]"
                           placeholder="Optional description"
                         />
                       </div>
@@ -510,9 +510,9 @@ export function ModelCreate() {
                                 is_required: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                           />
-                          <span className="text-sm text-gray-700">Required</span>
+                          <span className="text-sm text-[#a1a1a1]">Required</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -523,9 +523,9 @@ export function ModelCreate() {
                                 is_unique: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                           />
-                          <span className="text-sm text-gray-700">Unique</span>
+                          <span className="text-sm text-[#a1a1a1]">Unique</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -536,9 +536,9 @@ export function ModelCreate() {
                                 is_indexed: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                           />
-                          <span className="text-sm text-gray-700">Indexed</span>
+                          <span className="text-sm text-[#a1a1a1]">Indexed</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -549,15 +549,15 @@ export function ModelCreate() {
                                 is_searchable: e.target.checked,
                               })
                             }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
                           />
-                          <span className="text-sm text-gray-700">Searchable</span>
+                          <span className="text-sm text-[#a1a1a1]">Searchable</span>
                         </label>
                       </div>
 
                       {(field.type === 'enum' || field.type === 'select') && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-[#a1a1a1] mb-1">
                             Options (comma-separated)
                           </label>
                           <input
@@ -571,14 +571,14 @@ export function ModelCreate() {
                                   .filter(Boolean),
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm placeholder-[#6b6b6b]"
                             placeholder="option1, option2, option3"
                           />
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-[#a1a1a1] mb-1">
                           Default Value
                         </label>
                         <input
@@ -589,7 +589,7 @@ export function ModelCreate() {
                               default_value: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent text-sm placeholder-[#6b6b6b]"
                           placeholder="Optional default value"
                         />
                       </div>
@@ -602,7 +602,7 @@ export function ModelCreate() {
             <button
               type="button"
               onClick={addField}
-              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-600 rounded-lg hover:border-blue-500 hover:text-blue-600 transition"
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#3a3a3a] text-[#6b6b6b] rounded-lg hover:border-[#3ecf8e] hover:text-[#3ecf8e] transition-all duration-200"
             >
               <PlusIcon className="h-5 w-5" />
               Add Another Field
@@ -610,11 +610,11 @@ export function ModelCreate() {
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
-            <InformationCircleIcon className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
+          <div className="bg-[#1e1e1e] border border-blue-500/20 rounded-lg p-4 flex gap-3">
+            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-300">
               <p className="font-medium mb-1">What happens when you create a model?</p>
-              <ul className="list-disc list-inside space-y-1 text-blue-700">
+              <ul className="list-disc list-inside space-y-1 text-blue-200/70">
                 <li>A database migration is generated and run automatically</li>
                 <li>A new database table is created with your defined fields</li>
                 <li>REST API endpoints are auto-generated for CRUD operations</li>
@@ -626,14 +626,14 @@ export function ModelCreate() {
           <div className="flex gap-4">
             <Link
               to="/models"
-              className="flex-1 px-6 py-3 text-center text-gray-700 bg-gray-200 rounded-lg font-medium hover:bg-gray-300 transition"
+              className="flex-1 px-6 py-3 text-center text-[#ededed] bg-[#323232] rounded-lg font-medium hover:bg-[#3a3a3a] transition-all duration-200"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-[#3ecf8e] hover:bg-[#24b47e] text-black px-6 py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed glow-hover"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">

@@ -10,6 +10,10 @@ import {
   CheckIcon,
   PlayIcon,
   ArrowPathIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 interface DynamicField {
@@ -45,6 +49,7 @@ interface DynamicModel {
 }
 
 type TabType = 'overview' | 'api' | 'snippets' | 'data';
+type ModalMode = 'create' | 'edit' | 'delete';
 
 export function ModelDetail() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +63,13 @@ export function ModelDetail() {
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [dataMeta, setDataMeta] = useState({ total: 0, current_page: 1, last_page: 1 });
+
+  // CRUD Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('create');
+  const [currentRecord, setCurrentRecord] = useState<Record<string, any> | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     const fetchModel = async () => {
@@ -94,6 +106,73 @@ export function ModelDetail() {
       fetchData();
     }
   }, [activeTab, model]);
+
+  const handleOpenModal = (mode: ModalMode, record?: Record<string, any>) => {
+    setModalMode(mode);
+    setCurrentRecord(record || null);
+    setFormError('');
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setCurrentRecord(null);
+    setFormError('');
+  };
+
+  const handleSubmitRecord = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!model) return;
+
+    setIsSubmitting(true);
+    setFormError('');
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const data: Record<string, any> = {};
+
+      model.fields.forEach((field) => {
+        const value = formData.get(field.name);
+        if (field.type === 'boolean') {
+          data[field.name] = value === 'on';
+        } else if (field.type === 'integer' || field.type === 'number') {
+          data[field.name] = value ? Number(value) : null;
+        } else {
+          data[field.name] = value;
+        }
+      });
+
+      if (modalMode === 'create') {
+        await api.post(`/data/${model.table_name}`, data);
+      } else if (modalMode === 'edit' && currentRecord) {
+        await api.put(`/data/${model.table_name}/${currentRecord.id}`, data);
+      }
+
+      await fetchData();
+      handleCloseModal();
+    } catch (err: any) {
+      setFormError(err.response?.data?.message || 'Failed to save record');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!model || !currentRecord) return;
+
+    setIsSubmitting(true);
+    setFormError('');
+
+    try {
+      await api.delete(`/data/${model.table_name}/${currentRecord.id}`);
+      await fetchData();
+      handleCloseModal();
+    } catch (err: any) {
+      setFormError(err.response?.data?.message || 'Failed to delete record');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const copyToClipboard = async (text: string, snippetId: string) => {
     await navigator.clipboard.writeText(text);
@@ -229,11 +308,10 @@ const response = await fetch('/api/data/${tableName}', {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
-                  className={`px-6 py-4 text-sm font-medium border-b-2 transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'border-[#3ecf8e] text-[#3ecf8e]'
-                      : 'border-transparent text-[#6b6b6b] hover:text-[#a1a1a1] hover:border-[#3a3a3a]'
-                  }`}
+                  className={`px-6 py-4 text-sm font-medium border-b-2 transition-all duration-200 ${activeTab === tab.id
+                    ? 'border-[#3ecf8e] text-[#3ecf8e]'
+                    : 'border-transparent text-[#6b6b6b] hover:text-[#a1a1a1] hover:border-[#3a3a3a]'
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -320,15 +398,14 @@ const response = await fetch('/api/data/${tableName}', {
                 ].map((endpoint, i) => (
                   <div key={i} className="flex items-center gap-4 p-4 bg-[#323232] rounded-lg">
                     <span
-                      className={`px-3 py-1 text-xs font-bold rounded ${
-                        endpoint.method === 'GET'
-                          ? 'bg-[#3ecf8e]/10 text-[#3ecf8e]'
-                          : endpoint.method === 'POST'
+                      className={`px-3 py-1 text-xs font-bold rounded ${endpoint.method === 'GET'
+                        ? 'bg-[#3ecf8e]/10 text-[#3ecf8e]'
+                        : endpoint.method === 'POST'
                           ? 'bg-blue-500/10 text-blue-400'
                           : endpoint.method === 'PUT'
-                          ? 'bg-yellow-500/10 text-yellow-400'
-                          : 'bg-red-500/10 text-red-400'
-                      }`}
+                            ? 'bg-yellow-500/10 text-yellow-400'
+                            : 'bg-red-500/10 text-red-400'
+                        }`}
                     >
                       {endpoint.method}
                     </span>
@@ -421,13 +498,22 @@ const response = await fetch('/api/data/${tableName}', {
               <div className="animate-fadeIn">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-[#ededed]">Records ({dataMeta.total})</h3>
-                  <button
-                    onClick={fetchData}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-[#a1a1a1] bg-[#323232] rounded-md hover:bg-[#3a3a3a]"
-                  >
-                    <ArrowPathIcon className={`w-4 h-4 ${isLoadingData ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenModal('create')}
+                      className="flex items-center gap-2 px-4 py-2 text-sm bg-[#3ecf8e] text-black rounded-md hover:bg-[#24b47e] transition-all duration-200"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add Record
+                    </button>
+                    <button
+                      onClick={fetchData}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-[#a1a1a1] bg-[#323232] rounded-md hover:bg-[#3a3a3a]"
+                    >
+                      <ArrowPathIcon className={`w-4 h-4 ${isLoadingData ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                  </div>
                 </div>
 
                 {isLoadingData ? (
@@ -439,7 +525,7 @@ const response = await fetch('/api/data/${tableName}', {
                     <PlayIcon className="w-12 h-12 text-[#3a3a3a] mx-auto mb-4" />
                     <p className="text-[#a1a1a1] mb-2">No records yet</p>
                     <p className="text-sm text-[#6b6b6b]">
-                      Use the API endpoints to create your first record
+                      Use the API endpoints or the button above to create your first record
                     </p>
                   </div>
                 ) : (
@@ -453,17 +539,34 @@ const response = await fetch('/api/data/${tableName}', {
                               {field.display_name}
                             </th>
                           ))}
+                          <th className="px-4 py-3 text-right text-xs font-medium text-[#6b6b6b] uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#3a3a3a]">
                         {records.map((record) => (
-                          <tr key={record.id as number}>
+                          <tr key={record.id as number} className="group hover:bg-[#323232]">
                             <td className="px-4 py-3 text-sm text-[#ededed]">{record.id as number}</td>
                             {model.fields.filter((f) => f.show_in_list).slice(0, 5).map((field) => (
                               <td key={field.id} className="px-4 py-3 text-sm text-[#a1a1a1] max-w-xs truncate">
                                 {String(record[field.name] ?? '-')}
                               </td>
                             ))}
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleOpenModal('edit', record)}
+                                  className="p-1.5 text-[#a1a1a1] hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 rounded transition-all"
+                                >
+                                  <PencilIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenModal('delete', record)}
+                                  className="p-1.5 text-[#a1a1a1] hover:text-red-400 hover:bg-red-400/10 rounded transition-all"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -475,6 +578,129 @@ const response = await fetch('/api/data/${tableName}', {
           </div>
         </div>
       </div>
+
+      {/* CRUD Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg w-full max-w-lg mx-4 animate-slideUp overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-[#3a3a3a]">
+              <h3 className="text-lg font-semibold text-[#ededed]">
+                {modalMode === 'create' ? 'Create Record' : modalMode === 'edit' ? 'Edit Record' : 'Delete Record'}
+              </h3>
+              <button onClick={handleCloseModal} className="text-[#6b6b6b] hover:text-white transition-colors">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {modalMode === 'delete' ? (
+                <div>
+                  <p className="text-[#a1a1a1] mb-6">
+                    Are you sure you want to delete this record (ID: {currentRecord?.id})? This action cannot be undone.
+                  </p>
+                  {formError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+                      {formError}
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCloseModal}
+                      className="flex-1 px-4 py-2 text-[#a1a1a1] bg-[#323232] rounded-md hover:bg-[#3a3a3a] transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteRecord}
+                      disabled={isSubmitting}
+                      className="flex-1 px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-all disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitRecord} className="space-y-4">
+                  {formError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+                      {formError}
+                    </div>
+                  )}
+
+                  <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                    {model?.fields.map((field) => (
+                      <div key={field.id}>
+                        <label className="block text-sm font-medium text-[#a1a1a1] mb-1">
+                          {field.display_name}
+                          {field.is_required && <span className="text-red-400 ml-1">*</span>}
+                        </label>
+
+                        {field.type === 'boolean' ? (
+                          <div className="flex items-center mt-2">
+                            <input
+                              type="checkbox"
+                              name={field.name}
+                              defaultChecked={modalMode === 'edit' ? !!currentRecord?.[field.name] : field.default_value === 'true'}
+                              className="h-4 w-4 text-[#3ecf8e] bg-[#323232] border-[#3a3a3a] rounded focus:ring-[#3ecf8e]"
+                            />
+                            <span className="ml-2 text-sm text-[#6b6b6b]">Enable/True</span>
+                          </div>
+                        ) : field.type === 'text' || field.type === 'longText' ? (
+                          <textarea
+                            name={field.name}
+                            required={field.is_required}
+                            defaultValue={modalMode === 'edit' ? currentRecord?.[field.name] : field.default_value}
+                            className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent placeholder-[#6b6b6b]"
+                            rows={3}
+                          />
+                        ) : field.type === 'enum' || field.type === 'select' ? (
+                          <select
+                            name={field.name}
+                            required={field.is_required}
+                            defaultValue={modalMode === 'edit' ? currentRecord?.[field.name] : field.default_value}
+                            className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent"
+                          >
+                            <option value="">Select option</option>
+                            {field.options?.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type === 'integer' || field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
+                            name={field.name}
+                            required={field.is_required}
+                            defaultValue={modalMode === 'edit' ? currentRecord?.[field.name] : field.default_value}
+                            className="w-full px-3 py-2 bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-lg focus:ring-2 focus:ring-[#3ecf8e] focus:border-transparent placeholder-[#6b6b6b]"
+                          />
+                        )}
+                        {field.description && <p className="mt-1 text-xs text-[#6b6b6b]">{field.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-[#3a3a3a]">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      className="flex-1 px-4 py-2 text-[#a1a1a1] bg-[#323232] rounded-md hover:bg-[#3a3a3a] transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 px-4 py-2 text-black bg-[#3ecf8e] rounded-md hover:bg-[#24b47e] transition-all disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Record'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

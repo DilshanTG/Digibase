@@ -132,7 +132,7 @@ export function Storage() {
 
   const getFileColor = (file: StorageFile) => {
     if (file.is_image) return 'text-[#3ecf8e] bg-[#3ecf8e]/10';
-    if (file.mime_type.startsWith('video/')) return 'text-purple-400 bg-purple-500/10';
+    if (file.mime_type.startsWith('video/')) return 'text-teal-400 bg-teal-500/10';
     if (file.mime_type.startsWith('audio/')) return 'text-pink-400 bg-pink-500/10';
     if (file.mime_type === 'application/pdf') return 'text-red-400 bg-red-500/10';
     return 'text-blue-400 bg-blue-500/10';

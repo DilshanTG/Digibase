@@ -9,6 +9,7 @@ import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
+  CommandLineIcon
 } from '@heroicons/react/24/outline';
 import { useState, type ReactNode } from 'react';
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Models', href: '/models', icon: CubeIcon },
   { name: 'Database', href: '/database', icon: CircleStackIcon },
   { name: 'Storage', href: '/storage', icon: FolderIcon },
+  { name: 'API Docs', href: '/api-docs', icon: CommandLineIcon },
 ];
 
 export function Layout({ children }: LayoutProps) {
@@ -45,9 +47,8 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#171717] border-r border-[#2a2a2a] flex flex-col transform transition-transform duration-300 ease-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#171717] border-r border-[#2a2a2a] flex flex-col transform transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         {/* Logo */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-[#2a2a2a]">
@@ -74,11 +75,10 @@ export function Layout({ children }: LayoutProps) {
                 key={item.name}
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 animate-slideIn ${
-                  active
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 animate-slideIn ${active
                     ? 'bg-[#2a2a2a] text-white'
                     : 'text-[#a1a1a1] hover:bg-[#2a2a2a]/50 hover:text-white'
-                }`}
+                  }`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <item.icon className={`w-5 h-5 ${active ? 'text-[#3ecf8e]' : ''}`} />
