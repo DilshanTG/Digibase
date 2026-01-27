@@ -11,9 +11,13 @@ import {
   XMarkIcon,
   CommandLineIcon,
   CodeBracketIcon,
-  UsersIcon
+  UsersIcon,
+  KeyIcon,
+  ArrowPathIcon,
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+import api from '../lib/api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,14 +29,36 @@ const navigation = [
   { name: 'Database', href: '/database', icon: CircleStackIcon },
   { name: 'Storage', href: '/storage', icon: FolderIcon },
   { name: 'Users', href: '/users', icon: UsersIcon },
+  { name: 'Roles', href: '/roles', icon: ShieldCheckIcon },
+  { name: 'API Keys', href: '/api-keys', icon: KeyIcon },
   { name: 'Code Generator', href: '/code-generator', icon: CodeBracketIcon },
   { name: 'API Docs', href: '/api-docs', icon: CommandLineIcon },
+  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+  { name: 'Migrations', href: '/migrations', icon: ArrowPathIcon },
 ];
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [projectName, setProjectName] = useState('Digibase');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await api.get('/settings');
+        // settings are grouped by group, project_name is in 'general'
+        const generalSettings = response.data.general || [];
+        const nameSetting = generalSettings.find((s: any) => s.key === 'project_name');
+        if (nameSetting) {
+          setProjectName(nameSetting.value);
+        }
+      } catch (error) {
+        console.error('Failed to fetch project name:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return location.pathname === '/dashboard';
@@ -40,7 +66,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#1c1c1c] flex">
+    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -51,20 +77,25 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#171717] border-r border-[#2a2a2a] flex flex-col transform transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col transform transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
+        style={{ backgroundColor: 'var(--bg-surface)', borderRight: '1px solid var(--border-color)' }}
       >
         {/* Logo */}
-        <div className="h-14 flex items-center justify-between px-4 border-b border-[#2a2a2a]">
+        <div className="h-14 flex items-center justify-between px-4" style={{ borderBottom: '1px solid var(--border-color)' }}>
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-[#3ecf8e] to-[#24b47e] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">D</span>
+            <div className="w-8 h-8 bg-gradient-to-br from-[#3ecf8e] to-[#24b47e] rounded-lg flex items-center justify-center shadow-lg shadow-[#3ecf8e]/20">
+              <span className="text-white font-bold text-sm">
+                {projectName.charAt(0).toUpperCase()}
+              </span>
             </div>
-            <span className="text-[#ededed] font-semibold text-lg">Digibase</span>
+            <span className="font-semibold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              {projectName}
+            </span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 text-[#a1a1a1] hover:text-white"
+            className="lg:hidden p-1 hover:text-white" style={{ color: 'var(--text-secondary)' }}
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -96,21 +127,22 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         {/* User section */}
-        <div className="p-3 border-t border-[#2a2a2a]">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-[#2a2a2a]/50">
+        <div className="p-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+          <div className="flex items-center gap-3 px-3 py-2 rounded-md" style={{ backgroundColor: 'var(--bg-secondary)' }}>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3ecf8e] to-[#24b47e] flex items-center justify-center">
               <span className="text-white text-sm font-medium">
                 {user?.name?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#ededed] truncate">{user?.name}</p>
-              <p className="text-xs text-[#6b6b6b] truncate">{user?.email}</p>
+              <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user?.name}</p>
+              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
             </div>
           </div>
           <button
             onClick={logout}
-            className="w-full mt-2 flex items-center gap-3 px-3 py-2 rounded-md text-sm text-[#a1a1a1] hover:bg-[#2a2a2a]/50 hover:text-white transition-all duration-200"
+            className="w-full mt-2 flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-200"
+            style={{ color: 'var(--text-secondary)' }}
           >
             <ArrowRightOnRectangleIcon className="w-5 h-5" />
             Sign out
@@ -121,10 +153,10 @@ export function Layout({ children }: LayoutProps) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="h-14 bg-[#171717] border-b border-[#2a2a2a] flex items-center px-4 lg:px-6">
+        <header className="h-14 flex items-center px-4 lg:px-6" style={{ backgroundColor: 'var(--bg-surface)', borderBottom: '1px solid var(--border-color)' }}>
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 -ml-2 text-[#a1a1a1] hover:text-white"
+            className="lg:hidden p-2 -ml-2" style={{ color: 'var(--text-secondary)' }}
           >
             <Bars3Icon className="w-5 h-5" />
           </button>
@@ -132,9 +164,13 @@ export function Layout({ children }: LayoutProps) {
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
-            <button className="p-2 text-[#a1a1a1] hover:text-white hover:bg-[#2a2a2a] rounded-md transition-all duration-200">
+            <Link
+              to="/settings"
+              className="p-2 rounded-md transition-all duration-200"
+              style={{ color: 'var(--text-secondary)' }}
+            >
               <Cog6ToothIcon className="w-5 h-5" />
-            </button>
+            </Link>
           </div>
         </header>
 

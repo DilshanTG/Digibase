@@ -140,6 +140,17 @@ export function ApiDocs() {
         { id: 'auth-logout', method: 'POST', path: '/api/logout', description: 'Revoke the current access token.' },
     ];
 
+    const settingsEndpoints: Endpoint[] = [
+        { id: 'set-list', method: 'GET', path: '/api/settings', description: 'Retrieve all project settings grouped by category.' },
+        { id: 'set-update', method: 'PUT', path: '/api/settings', description: 'Batch update multiple settings.', requestBody: { settings: [{ key: 'project_name', value: 'My App' }] } },
+    ];
+
+    const migrationEndpoints: Endpoint[] = [
+        { id: 'mig-list', method: 'GET', path: '/api/migrations', description: 'Get status of all database migrations.' },
+        { id: 'mig-run', method: 'POST', path: '/api/migrations/run', description: 'Execute all pending migrations.' },
+        { id: 'mig-rollback', method: 'POST', path: '/api/migrations/rollback', description: 'Rollback the last migration batch.' },
+    ];
+
     const userEndpoints: Endpoint[] = [
         { id: 'usr-list', method: 'GET', path: '/api/users', description: 'Fetch all platform users with roles. Admin only.' },
         {
@@ -150,6 +161,11 @@ export function ApiDocs() {
             ]
         },
         { id: 'usr-update', method: 'PUT', path: '/api/users/{id}', description: 'Update user profile or change roles.' },
+    ];
+
+    const roleEndpoints: Endpoint[] = [
+        { id: 'role-list', method: 'GET', path: '/api/roles', description: 'List all available security roles.' },
+        { id: 'role-perm', method: 'GET', path: '/api/permissions', description: 'Fetch list of all system permissions.' },
     ];
 
     const storageEndpoints: Endpoint[] = [
@@ -174,8 +190,10 @@ export function ApiDocs() {
 
     const staticSections: ApiSection[] = [
         { id: 'auth', title: 'Authentication', icon: KeyIcon, description: 'Secure access control and token management.', endpoints: authEndpoints },
-        { id: 'users', title: 'User Management', icon: UsersIcon, description: 'Team collaboration and administrative tools.', endpoints: userEndpoints },
+        { id: 'users', title: 'Identity & Access', icon: UsersIcon, description: 'User management, roles, and permissions.', endpoints: [...userEndpoints, ...roleEndpoints] },
         { id: 'storage', title: 'File Storage', icon: FolderIcon, description: 'Cloud storage management and uploads.', endpoints: storageEndpoints },
+        { id: 'settings', title: 'Settings', icon: KeyIcon, description: 'Project configuration and environment management.', endpoints: settingsEndpoints },
+        { id: 'migrations', title: 'Migrations', icon: CommandLineIcon, description: 'Database version control and schema management.', endpoints: migrationEndpoints },
         {
             id: 'utils', title: 'Utilities', icon: CodeBracketIcon, description: 'Advanced developer tools and system helpers.', endpoints: [
                 { id: 'gen-code', method: 'POST', path: '/api/code/generate', description: 'Generate React/Vue source code for any model.' },
@@ -184,7 +202,17 @@ export function ApiDocs() {
         }
     ];
 
-    const allSections = [...staticSections, ...modelSections];
+    const websocketSection: ApiSection = {
+        id: 'realtime',
+        title: 'Real-time (WebSockets)',
+        icon: PlayIcon,
+        description: 'Listen for live updates using Laravel Reverb.',
+        endpoints: [
+            { id: 'ws-activity', method: 'GET', path: 'digibase.activity', description: 'Public channel for live system activity.' },
+        ]
+    };
+
+    const allSections = [...staticSections, ...modelSections, websocketSection];
     const filteredSections = allSections.filter(s =>
         s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.endpoints.some(e => e.path.toLowerCase().includes(searchQuery.toLowerCase()))

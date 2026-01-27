@@ -20,7 +20,7 @@ class CodeGeneratorController extends Controller
     {
         $request->validate([
             'model_id' => 'required|exists:dynamic_models,id',
-            'framework' => 'required|string|in:react,vue',
+            'framework' => 'required|string|in:react,vue,nextjs,nuxt',
             'operation' => 'required|string|in:all,list,create,hook',
             'style' => 'string|in:tailwind,bootstrap',
             'typescript' => 'boolean'

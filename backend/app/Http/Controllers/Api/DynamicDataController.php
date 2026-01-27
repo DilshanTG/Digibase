@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Events\ModelActivity;
 use App\Models\DynamicModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -122,14 +123,18 @@ class DynamicDataController extends Controller
 
         $query = DB::table($tableName);
 
-        // Search
+        // Search (Optimized: only search in 'is_searchable' fields)
         if ($request->has('search') && $request->search) {
-            $searchableFields = $model->fields->where('is_searchable', true)->pluck('name');
-            $query->where(function ($q) use ($searchableFields, $request) {
-                foreach ($searchableFields as $field) {
-                    $q->orWhere($field, 'LIKE', '%' . $request->search . '%');
-                }
-            });
+            $searchTerm = $request->search;
+            $searchableFields = $model->fields->where('is_searchable', true)->pluck('name')->toArray();
+            
+            if (!empty($searchableFields)) {
+                $query->where(function ($q) use ($searchableFields, $searchTerm) {
+                    foreach ($searchableFields as $field) {
+                        $q->orWhere($field, 'LIKE', $searchTerm . '%'); // Prefix search is faster than infix if indexed
+                    }
+                });
+            }
         }
 
         // Filters
@@ -255,6 +260,9 @@ class DynamicDataController extends Controller
         $id = DB::table($tableName)->insertGetId($data);
         $record = DB::table($tableName)->where('id', $id)->first();
 
+        // Broadcast Activity
+        event(new ModelActivity('created', $model->name, $record, $request->user()));
+
         return response()->json(['data' => $record], 201);
     }
 
@@ -333,6 +341,9 @@ class DynamicDataController extends Controller
 
         $record = DB::table($tableName)->where('id', $id)->first();
 
+        // Broadcast Activity
+        event(new ModelActivity('updated', $model->name, $record, $request->user()));
+
         return response()->json(['data' => $record]);
     }
 
@@ -369,6 +380,9 @@ class DynamicDataController extends Controller
         } else {
             DB::table($tableName)->where('id', $id)->delete();
         }
+
+        // Broadcast Activity
+        event(new ModelActivity('deleted', $model->name, ['id' => $id], $request->user()));
 
         return response()->json(['message' => 'Record deleted successfully']);
     }

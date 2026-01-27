@@ -24,6 +24,8 @@ Route::middleware('auth:sanctum')->group(function () {
         'models' => 'dynamicModel'
     ]);
     Route::post('/models/{dynamicModel}/fields', [DynamicModelController::class, 'addFields']);
+    Route::put('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'updateField']);
+    Route::delete('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'destroyField']);
 
     // Dynamic Data API (Auto-generated CRUD for dynamic models)
     Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
@@ -61,4 +63,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // Role & Permission Management
     Route::get('/permissions', [\App\Http\Controllers\Api\RoleController::class, 'permissions']);
     Route::apiResource('roles', \App\Http\Controllers\Api\RoleController::class);
+
+    // API Key Management
+    Route::get('/tokens', [\App\Http\Controllers\Api\ApiKeyController::class, 'index']);
+    Route::post('/tokens', [\App\Http\Controllers\Api\ApiKeyController::class, 'store']);
+    Route::delete('/tokens/{id}', [\App\Http\Controllers\Api\ApiKeyController::class, 'destroy']);
+
+    // Settings Management
+    Route::get('/settings', [\App\Http\Controllers\Api\SettingsController::class, 'index']);
+    Route::get('/settings/{group}', [\App\Http\Controllers\Api\SettingsController::class, 'show']);
+    Route::put('/settings', [\App\Http\Controllers\Api\SettingsController::class, 'update']);
+
+    // Migration Management
+    Route::get('/migrations', [\App\Http\Controllers\Api\MigrationController::class, 'index']);
+    Route::post('/migrations/run', [\App\Http\Controllers\Api\MigrationController::class, 'migrate']);
+    Route::post('/migrations/rollback', [\App\Http\Controllers\Api\MigrationController::class, 'rollback']);
 });

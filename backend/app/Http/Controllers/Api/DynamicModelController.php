@@ -59,7 +59,7 @@ class DynamicModelController extends Controller
             'fields' => 'required|array|min:1',
             'fields.*.name' => 'required|string|max:255|regex:/^[a-z][a-z0-9_]*$/',
             'fields.*.display_name' => 'required|string|max:255',
-            'fields.*.type' => 'required|string|in:string,text,richtext,integer,float,decimal,boolean,date,datetime,time,json,enum,select,email,url,phone,slug,uuid,file,image',
+            'fields.*.type' => 'required|string|in:string,text,richtext,integer,float,decimal,boolean,date,datetime,time,json,enum,select,email,url,phone,slug,uuid,file,image,password,color,encrypted,markdown,point',
             'fields.*.description' => 'nullable|string',
             'fields.*.is_required' => 'boolean',
             'fields.*.is_unique' => 'boolean',
@@ -71,6 +71,11 @@ class DynamicModelController extends Controller
             'fields.*.show_in_detail' => 'boolean',
             'fields.*.default_value' => 'nullable|string',
             'fields.*.options' => 'nullable|array',
+            'relationships' => 'nullable|array',
+            'relationships.*.name' => 'required|string|max:255',
+            'relationships.*.type' => 'required|string|in:belongsTo,hasMany',
+            'relationships.*.related_model_id' => 'required|exists:dynamic_models,id',
+            'relationships.*.foreign_key' => 'nullable|string|max:255',
         ]);
 
         // Generate table name from model name
@@ -215,8 +220,13 @@ class DynamicModelController extends Controller
             ['value' => 'phone', 'label' => 'Phone', 'description' => 'Phone number', 'icon' => 'phone'],
             ['value' => 'slug', 'label' => 'Slug', 'description' => 'URL-friendly string', 'icon' => 'link-2'],
             ['value' => 'uuid', 'label' => 'UUID', 'description' => 'Unique identifier', 'icon' => 'key'],
-            ['value' => 'file', 'label' => 'File', 'description' => 'File upload', 'icon' => 'file'],
-            ['value' => 'image', 'label' => 'Image', 'description' => 'Image upload', 'icon' => 'image'],
+            ['value' => 'password', 'label' => 'Password', 'description' => 'Hashed secure password', 'icon' => 'lock-closed'],
+            ['value' => 'color', 'label' => 'Color', 'description' => 'HEX color value', 'icon' => 'swatch'],
+            ['value' => 'encrypted', 'label' => 'Encrypted', 'description' => 'AES-256 encrypted string', 'icon' => 'shield-check'],
+            ['value' => 'markdown', 'label' => 'Markdown', 'description' => 'Markdown formatted text', 'icon' => 'document-text'],
+            ['value' => 'point', 'label' => 'Location (Point)', 'description' => 'GPS coordinates (Lat/Lng)', 'icon' => 'map-pin'],
+            ['value' => 'file', 'label' => 'File', 'description' => 'File upload', 'icon' => 'paper-clip'],
+            ['value' => 'image', 'label' => 'Image', 'description' => 'Image upload', 'icon' => 'photo'],
         ];
 
         return response()->json($types);
@@ -305,6 +315,75 @@ class DynamicModelController extends Controller
     }
 
     /**
+     * Update an existing field.
+     */
+    public function updateField(Request $request, DynamicModel $dynamicModel, DynamicField $field): JsonResponse
+    {
+        if ($dynamicModel->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'display_name' => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+            'is_required' => 'boolean',
+            'is_unique' => 'boolean',
+            'is_searchable' => 'boolean',
+            'is_filterable' => 'boolean',
+            'is_sortable' => 'boolean',
+            'show_in_list' => 'boolean',
+            'show_in_detail' => 'boolean',
+            'default_value' => 'nullable|string',
+            'options' => 'nullable|array',
+        ]);
+
+        $field->update($validated);
+
+        return response()->json([
+            'message' => 'Field updated successfully',
+            'field' => $field
+        ]);
+    }
+
+    /**
+     * Delete a field and remove its column from the database.
+     */
+    public function destroyField(Request $request, DynamicModel $dynamicModel, DynamicField $field): JsonResponse
+    {
+        if ($dynamicModel->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Final safety check: Don't allow deleting 'id' or timestamp fields if they exist as dynamic fields
+        if (in_array($field->name, ['id', 'created_at', 'updated_at', 'deleted_at'])) {
+            return response()->json(['message' => 'Cannot delete system protected fields.'], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Drop column from DB
+            if (DB::getSchemaBuilder()->hasColumn($dynamicModel->table_name, $field->name)) {
+                DB::getSchemaBuilder()->table($dynamicModel->table_name, function ($table) use ($field) {
+                    $table->dropColumn($field->name);
+                });
+            }
+
+            // Delete field record
+            $field->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Field deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to delete field: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Generate migration for adding columns to an existing table.
      */
     protected function generateAddColumnsMigration(DynamicModel $model, array $newFields): void
@@ -377,12 +456,19 @@ PHP;
      */
     protected function buildMigrationContent(DynamicModel $model): string
     {
+        $model->load(['fields', 'relationships.relatedModel']);
         $tableName = $model->table_name;
         $fields = $model->fields;
+        $relationships = $model->relationships;
 
         $fieldDefinitions = '';
         foreach ($fields as $field) {
             $fieldDefinitions .= $this->buildFieldDefinition($field);
+        }
+
+        $relDefinitions = '';
+        foreach ($relationships as $rel) {
+            $relDefinitions .= $this->buildRelationshipDefinition($rel);
         }
 
         $timestamps = $model->has_timestamps ? "\$table->timestamps();\n            " : '';
@@ -404,7 +490,10 @@ return new class extends Migration
     {
         Schema::create('{$tableName}', function (Blueprint \$table) {
             \$table->id();
-            {$fieldDefinitions}{$timestamps}{$softDeletes}
+            {$fieldDefinitions}
+            {$relDefinitions}
+            {$timestamps}
+            {$softDeletes}
         });
     }
 
@@ -425,8 +514,8 @@ PHP;
     protected function buildFieldDefinition(DynamicField $field): string
     {
         $method = match ($field->type) {
-            'string', 'email', 'url', 'phone', 'slug' => 'string',
-            'text', 'richtext' => 'text',
+            'string', 'email', 'url', 'phone', 'slug', 'password', 'color', 'encrypted' => 'string',
+            'text', 'richtext', 'markdown' => 'text',
             'integer' => 'integer',
             'float' => 'float',
             'decimal' => 'decimal',
@@ -438,6 +527,7 @@ PHP;
             'enum', 'select' => 'string',
             'uuid' => 'uuid',
             'file', 'image' => 'string',
+            'point' => 'geometry',
             default => 'string',
         };
 
@@ -465,5 +555,18 @@ PHP;
         }
 
         return $definition . ";\n            ";
+    }
+
+    /**
+     * Build relationship definition for migration.
+     */
+    protected function buildRelationshipDefinition($rel): string
+    {
+        if ($rel->type === 'belongsTo') {
+            $foreignKey = $rel->foreign_key ?: Str::snake($rel->name) . '_id';
+            $relatedTable = $rel->relatedModel->table_name;
+            return "\$table->foreignId('{$foreignKey}')->nullable()->constrained('{$relatedTable}')->nullOnDelete();\n            ";
+        }
+        return '';
     }
 }

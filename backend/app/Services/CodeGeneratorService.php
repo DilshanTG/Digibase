@@ -16,6 +16,10 @@ class CodeGeneratorService
                 return $this->generateReact($model, $operation, $style, $typescript);
             case 'vue':
                 return $this->generateVue($model, $operation, $style, $typescript);
+            case 'nextjs':
+                return $this->generateNextJs($model, $operation, $style, $typescript);
+            case 'nuxt':
+                return $this->generateNuxt($model, $operation, $style, $typescript);
             default:
                 return [['name' => 'Error.txt', 'code' => 'Framework not supported yet.']];
         }
@@ -245,12 +249,139 @@ React;
 
     protected function generateVue(DynamicModel $model, $operation, $style, $typescript)
     {
-        // Simple placeholder for Vue
+        $modelName = $model->name;
+        $displayName = $model->display_name;
+        $tableName = $model->table_name;
+        $fields = $model->fields;
+
+        $formFields = "";
+        foreach ($fields as $field) {
+            $formFields .= "          <div class=\"mb-4\">\n";
+            $formFields .= "            <label class=\"block text-sm font-medium mb-1\">{$field->display_name}</label>\n";
+            $formFields .= "            <input v-model=\"formData.{$field->name}\" type=\"text\" class=\"w-full px-3 py-2 border rounded-md\" />\n";
+            $formFields .= "          </div>\n";
+        }
+
+        $code = <<<VUE
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import axios from 'axios'
+
+const data = ref([])
+const formData = ref({})
+
+onMounted(async () => {
+  const res = await axios.get('/api/data/{$tableName}')
+  data.value = res.data.data || res.data
+})
+
+const create = async () => {
+  await axios.post('/api/data/{$tableName}', formData.value)
+}
+</script>
+
+<template>
+  <div class="p-6">
+    <h1 class="text-2xl font-bold mb-4">{$displayName} Manager</h1>
+    
+    <form @submit.prevent="create" class="mb-8 p-4 border rounded-lg">
+{$formFields}      <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Create</button>
+    </form>
+    
+    <ul class="divide-y">
+      <li v-for="item in data" :key="item.id" class="py-2">{{ JSON.stringify(item) }}</li>
+    </ul>
+  </div>
+</template>
+VUE;
+
         return [
             [
-                'name' => "{$model->name}Component.vue",
-                'code' => "<template>\n  <div>Vue component for {$model->display_name} coming soon!</div>\n</template>",
-                'description' => "Vue 3 Component template."
+                'name' => "{$modelName}Manager.vue",
+                'code' => $code,
+                'description' => "Vue 3 Component with Composition API for {$displayName}."
+            ]
+        ];
+    }
+
+    protected function generateNextJs(DynamicModel $model, $operation, $style, $typescript)
+    {
+        $modelName = $model->name;
+        $displayName = $model->display_name;
+        $tableName = $model->table_name;
+        
+        $code = <<<NEXT
+'use client'
+
+import { useEffect, useState } from 'react'
+
+export default function {$modelName}Page() {
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/data/{$tableName}')
+      .then(res => res.json())
+      .then(json => {
+        setData(json.data || json)
+        setLoading(false)
+      })
+  }, [])
+
+  if (loading) return <div className="p-8">Loading...</div>
+
+  return (
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-6">{$displayName}</h1>
+      <div className="grid gap-4">
+        {data.map((item: any) => (
+          <div key={item.id} className="p-4 border rounded-lg">
+            {JSON.stringify(item)}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+NEXT;
+
+        return [
+            [
+                'name' => "page.tsx",
+                'code' => $code,
+                'description' => "Next.js 14 App Router page component for {$displayName}."
+            ]
+        ];
+    }
+
+    protected function generateNuxt(DynamicModel $model, $operation, $style, $typescript)
+    {
+        $modelName = $model->name;
+        $displayName = $model->display_name;
+        $tableName = $model->table_name;
+        
+        $code = <<<NUXT
+<script setup lang="ts">
+const { data } = await useFetch('/api/data/{$tableName}')
+</script>
+
+<template>
+  <div class="p-8">
+    <h1 class="text-3xl font-bold mb-6">{$displayName}</h1>
+    <div class="grid gap-4">
+      <div v-for="item in data?.data || data" :key="item.id" class="p-4 border rounded-lg">
+        {{ JSON.stringify(item) }}
+      </div>
+    </div>
+  </div>
+</template>
+NUXT;
+
+        return [
+            [
+                'name' => "{$modelName}.vue",
+                'code' => $code,
+                'description' => "Nuxt 3 page component with useFetch for {$displayName}."
             ]
         ];
     }

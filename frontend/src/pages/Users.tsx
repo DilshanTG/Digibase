@@ -27,6 +27,7 @@ interface User {
 
 export function Users() {
     const [users, setUsers] = useState<User[]>([]);
+    const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -48,10 +49,14 @@ export function Users() {
     const fetchUsers = async () => {
         try {
             setIsLoading(true);
-            const response = await api.get('/users');
-            setUsers(response.data);
+            const [usersRes, rolesRes] = await Promise.all([
+                api.get('/users'),
+                api.get('/roles')
+            ]);
+            setUsers(usersRes.data);
+            setAvailableRoles(rolesRes.data);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to load users. You might not have permission.');
+            setError(err.response?.data?.message || 'Failed to load data. You might not have permission.');
         } finally {
             setIsLoading(false);
         }
@@ -270,8 +275,11 @@ export function Users() {
                                     onChange={e => setFormData({ ...formData, role: e.target.value })}
                                     className="w-full bg-[#323232] border border-[#3a3a3a] text-[#ededed] rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-[#3ecf8e]"
                                 >
-                                    <option value="user">User</option>
-                                    <option value="admin">Admin</option>
+                                    {availableRoles.map(role => (
+                                        <option key={role.id} value={role.name}>
+                                            {role.name.charAt(0).toUpperCase() + role.name.slice(1)}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 

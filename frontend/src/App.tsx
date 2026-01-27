@@ -15,6 +15,10 @@ import { Database } from './pages/Database';
 import { ApiDocs } from './pages/ApiDocs';
 import { CodeGenerator } from './pages/CodeGenerator';
 import { Users } from './pages/Users';
+import { ApiKeys } from './pages/ApiKeys';
+import { Settings } from './pages/Settings';
+import { Migrations } from './pages/Migrations';
+import { Roles } from './pages/Roles';
 
 const queryClient = new QueryClient();
 
@@ -40,6 +44,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Models />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/migrations"
+              element={
+                <ProtectedRoute>
+                  <Migrations />
                 </ProtectedRoute>
               }
             />
@@ -76,6 +88,22 @@ function App() {
               }
             />
             <Route
+              path="/roles"
+              element={
+                <ProtectedRoute>
+                  <Roles />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/api-keys"
+              element={
+                <ProtectedRoute>
+                  <ApiKeys />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/code-generator"
               element={
                 <ProtectedRoute>
@@ -96,6 +124,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Database />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

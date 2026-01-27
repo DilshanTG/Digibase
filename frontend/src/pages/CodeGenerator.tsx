@@ -28,7 +28,7 @@ interface GeneratedFile {
 export function CodeGenerator() {
     const [models, setModels] = useState<DynamicModel[]>([]);
     const [selectedModelId, setSelectedModelId] = useState<string>('');
-    const [framework, setFramework] = useState<'react' | 'vue'>('react');
+    const [framework, setFramework] = useState<'react' | 'vue' | 'nextjs' | 'nuxt'>('react');
     const [operation, setOperation] = useState<'all' | 'list' | 'create' | 'hook'>('all');
     const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -143,6 +143,26 @@ export function CodeGenerator() {
                                 >
                                     <RectangleStackIcon className="w-6 h-6" />
                                     <span className="text-xs font-semibold">Vue 3</span>
+                                </button>
+                                <button
+                                    onClick={() => setFramework('nextjs')}
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${framework === 'nextjs'
+                                        ? 'bg-white/10 border-white text-white'
+                                        : 'bg-[#323232] border-transparent text-[#a1a1a1] hover:border-[#3a3a3a]'
+                                        }`}
+                                >
+                                    <GlobeAltIcon className="w-6 h-6" />
+                                    <span className="text-xs font-semibold">Next.js</span>
+                                </button>
+                                <button
+                                    onClick={() => setFramework('nuxt')}
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${framework === 'nuxt'
+                                        ? 'bg-teal-500/10 border-teal-500 text-teal-400'
+                                        : 'bg-[#323232] border-transparent text-[#a1a1a1] hover:border-[#3a3a3a]'
+                                        }`}
+                                >
+                                    <RectangleStackIcon className="w-6 h-6" />
+                                    <span className="text-xs font-semibold">Nuxt 3</span>
                                 </button>
                             </div>
 

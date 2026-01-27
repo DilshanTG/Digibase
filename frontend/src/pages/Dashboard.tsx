@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { CardSkeleton } from '../components/Skeleton';
+import { ActivityFeed } from '../components/ActivityFeed';
+import { GettingStartedGuide } from '../components/GettingStartedGuide';
+import { echo } from '../lib/echo';
 import api from '../lib/api';
 import {
   CubeIcon,
@@ -32,34 +35,55 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentModels, setRecentModels] = useState<RecentModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [modelsRes, dbStatsRes, storageStatsRes] = await Promise.all([
+        api.get('/models'),
+        api.get('/database/stats'),
+        api.get('/storage/stats'),
+      ]);
+
+      const models = modelsRes.data.data || modelsRes.data || [];
+      setRecentModels(Array.isArray(models) ? models.slice(0, 5) : []);
+
+      setStats({
+        models: models.length,
+        tables: dbStatsRes.data.total_tables || 0,
+        files: storageStatsRes.data.total_files || 0,
+        storage_used: formatBytes(storageStatsRes.data.total_size || 0),
+      });
+    } catch {
+      setStats({ models: 0, tables: 0, files: 0, storage_used: '0 B' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [modelsRes, dbStatsRes, storageStatsRes] = await Promise.all([
-          api.get('/models'),
-          api.get('/database/stats'),
-          api.get('/storage/stats'),
-        ]);
-
-        const models = modelsRes.data.data || modelsRes.data || [];
-        setRecentModels(Array.isArray(models) ? models.slice(0, 5) : []);
-
-        setStats({
-          models: models.length,
-          tables: dbStatsRes.data.total_tables || 0,
-          files: storageStatsRes.data.total_files || 0,
-          storage_used: formatBytes(storageStatsRes.data.total_size || 0),
-        });
-      } catch {
-        setStats({ models: 0, tables: 0, files: 0, storage_used: '0 B' });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchData();
-  }, []);
+
+    // Real-time updates
+    const channel = echo.channel('digibase.activity');
+
+    channel.listen('.ModelActivity', () => {
+      // Refresh stats when any model activity occurs
+      fetchData();
+    });
+
+    // Track WebSocket connection status
+    if (echo.connector?.pusher) {
+      echo.connector.pusher.connection.bind('connected', () => setWsConnected(true));
+      echo.connector.pusher.connection.bind('disconnected', () => setWsConnected(false));
+      echo.connector.pusher.connection.bind('error', () => setWsConnected(false));
+      setWsConnected(echo.connector.pusher.connection.state === 'connected');
+    }
+
+    return () => {
+      echo.leaveChannel('digibase.activity');
+    };
+  }, [fetchData]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -151,6 +175,9 @@ export function Dashboard() {
               </Link>
             ))}
         </div>
+
+        {/* Getting Started Guide */}
+        <GettingStartedGuide />
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -256,7 +283,29 @@ export function Dashboard() {
                   <span className="text-sm text-[#3ecf8e]">Operational</span>
                 </div>
               </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-sm text-[#6b6b6b]">WebSocket</span>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[#3ecf8e] animate-pulse' : 'bg-yellow-500'}`} />
+                  <span className={`text-sm ${wsConnected ? 'text-[#3ecf8e]' : 'text-yellow-500'}`}>
+                    {wsConnected ? 'Connected' : 'Connecting...'}
+                  </span>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          <ActivityFeed />
+          <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden p-6 text-slate-500 text-sm">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <ClockIcon className="w-5 h-5 text-blue-500" />
+              Quick Guide
+            </h3>
+            <p>1. Use the <strong className="text-white">Models</strong> page to create your database schema.</p>
+            <p className="mt-2">2. Digibase will automatically generate REST API endpoints for you.</p>
+            <p className="mt-2">3. Check <strong className="text-white">API Docs</strong> to see how to connect your app.</p>
           </div>
         </div>
       </div>

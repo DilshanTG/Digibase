@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { Layout } from '../components/Layout';
 import api from '../lib/api';
 import {
   PlusIcon,
@@ -36,6 +37,14 @@ interface Field {
   options: string[];
 }
 
+interface Relationship {
+  id: string;
+  name: string;
+  type: 'belongsTo' | 'hasMany';
+  related_model_id: number | string;
+  foreign_key: string;
+}
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const defaultField: Omit<Field, 'id'> = {
@@ -55,8 +64,15 @@ const defaultField: Omit<Field, 'id'> = {
   options: [],
 };
 
+const defaultRelationship: Omit<Relationship, 'id'> = {
+  name: '',
+  type: 'belongsTo',
+  related_model_id: '',
+  foreign_key: '',
+};
+
 export function ModelCreate() {
-  const { user, logout } = useAuth();
+  useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -74,7 +90,9 @@ export function ModelCreate() {
   const [fields, setFields] = useState<Field[]>([
     { ...defaultField, id: generateId() },
   ]);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [expandedField, setExpandedField] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchFieldTypes = async () => {
@@ -85,7 +103,16 @@ export function ModelCreate() {
         console.error('Failed to fetch field types');
       }
     };
+    const fetchModels = async () => {
+      try {
+        const response = await api.get('/models');
+        setAvailableModels(response.data.data || response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch models');
+      }
+    };
     fetchFieldTypes();
+    fetchModels();
   }, []);
 
   // Auto-generate name from display name
@@ -141,6 +168,21 @@ export function ModelCreate() {
     setFields(newFields);
   };
 
+  const addRelationship = () => {
+    const newRel = { ...defaultRelationship, id: generateId() };
+    setRelationships([...relationships, newRel]);
+  };
+
+  const removeRelationship = (id: string) => {
+    setRelationships(relationships.filter((r) => r.id !== id));
+  };
+
+  const updateRelationship = (id: string, updates: Partial<Relationship>) => {
+    setRelationships(
+      relationships.map((r) => (r.id === id ? { ...r, ...updates } : r))
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -189,6 +231,12 @@ export function ModelCreate() {
           default_value: f.default_value || null,
           options: f.options.length > 0 ? f.options : null,
         })),
+        relationships: relationships.map((r) => ({
+          name: r.name,
+          type: r.type,
+          related_model_id: r.related_model_id,
+          foreign_key: r.foreign_key,
+        })),
       };
 
       await api.post('/models', payload);
@@ -205,41 +253,8 @@ export function ModelCreate() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1c1c1c]">
-      {/* Header */}
-      <header className="bg-[#171717] border-b border-[#2a2a2a]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center gap-6">
-              <Link to="/dashboard">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
-                  Digibase
-                </h1>
-              </Link>
-              <nav className="flex items-center gap-4">
-                <Link to="/dashboard" className="text-[#a1a1a1] hover:text-white transition-colors">
-                  Dashboard
-                </Link>
-                <Link to="/models" className="text-[#a1a1a1] hover:text-white transition-colors">
-                  Models
-                </Link>
-                <span className="text-[#3ecf8e] font-medium">Create</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-[#a1a1a1]">Welcome, {user?.name}</span>
-              <button
-                onClick={logout}
-                className="text-[#a1a1a1] hover:text-white font-medium transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Layout>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
         {/* Page Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link
@@ -461,6 +476,12 @@ export function ModelCreate() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <span className="p-1 px-2 bg-[#2a2a2a] text-[10px] text-[#6b6b6b] border border-[#3a3a3a] rounded font-mono uppercase">
+                        {field.type}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                       {field.is_required && (
                         <span className="text-xs text-red-400 font-medium">
                           Required
@@ -609,6 +630,107 @@ export function ModelCreate() {
             </button>
           </div>
 
+          {/* Relationships */}
+          <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#ededed]">Relationships</h3>
+              <button
+                type="button"
+                onClick={addRelationship}
+                className="flex items-center gap-1 text-blue-400 hover:text-blue-300 font-medium text-sm transition-colors"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Relationship
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {relationships.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed border-[#3a3a3a] rounded-lg text-[#6b6b6b] text-sm">
+                  No relationships defined yet.
+                </div>
+              ) : (
+                relationships.map((rel) => (
+                  <div key={rel.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-[#323232] border border-[#3a3a3a] rounded-lg relative group">
+                    <div>
+                      <label className="block text-xs text-[#a1a1a1] mb-1">Relationship Name</label>
+                      <input
+                        type="text"
+                        value={rel.name}
+                        onChange={(e) => updateRelationship(rel.id, { name: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-1 focus:ring-[#3ecf8e] text-sm"
+                        placeholder="e.g., category"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#a1a1a1] mb-1">Type</label>
+                      <select
+                        value={rel.type}
+                        onChange={(e) => updateRelationship(rel.id, { type: e.target.value as any })}
+                        className="w-full px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-1 focus:ring-[#3ecf8e] text-sm"
+                      >
+                        <option value="belongsTo">Belongs To</option>
+                        <option value="hasMany">Has Many</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[#a1a1a1] mb-1">Related Model</label>
+                      <select
+                        value={rel.related_model_id}
+                        onChange={(e) => updateRelationship(rel.id, { related_model_id: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-1 focus:ring-[#3ecf8e] text-sm"
+                        required
+                      >
+                        <option value="">Select model</option>
+                        {availableModels.filter(m => m.name !== name).map(m => (
+                          <option key={m.id} value={m.id}>{m.display_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-end gap-2 text-right">
+                      <div className="flex-1">
+                        <label className="block text-xs text-[#a1a1a1] mb-1 text-left">Foreign Key (Source Field)</label>
+                        <select
+                          value={rel.foreign_key}
+                          onChange={(e) => updateRelationship(rel.id, { foreign_key: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-[#2a2a2a] border border-[#3a3a3a] text-[#ededed] rounded focus:ring-1 focus:ring-[#3ecf8e] text-sm"
+                          required
+                        >
+                          <option value="">Select column</option>
+                          {/* If BelongsTo, the FK is in the CURRENT model */}
+                          {rel.type === 'belongsTo' ? (
+                            fields.length > 0 ? (
+                              fields.map(f => (
+                                <option key={f.id} value={f.name || ''} disabled={!f.name}>
+                                  {f.name || (f.display_name ? `(${f.display_name})` : 'Unnamed Field')}
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>Add a field above first</option>
+                            )
+                          ) : (
+                            /* If HasMany, the FK is in the RELATED model */
+                            availableModels.find(m => String(m.id) === String(rel.related_model_id))?.fields?.map((f: any) => (
+                              <option key={f.id} value={f.name}>{f.name}</option>
+                            )) || <option disabled>Select a related model first</option>
+                          )}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeRelationship(rel.id)}
+                        className="p-2 text-[#6b6b6b] hover:text-red-400"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Info Box */}
           <div className="bg-[#1e1e1e] border border-blue-500/20 rounded-lg p-4 flex gap-3">
             <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
@@ -665,7 +787,12 @@ export function ModelCreate() {
             </button>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+        .glow-hover:hover { box-shadow: 0 0 20px rgba(62, 207, 142, 0.2); }
+      `}</style>
+    </Layout>
   );
 }
