@@ -3,11 +3,10 @@
 namespace App\Filament\Resources\DynamicModelResource\Pages;
 
 use App\Filament\Resources\DynamicModelResource;
-use App\Models\DynamicField;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Filament\Notifications\Notification;
 
 class CreateDynamicModel extends CreateRecord
 {
@@ -17,88 +16,71 @@ class CreateDynamicModel extends CreateRecord
     {
         $data['user_id'] = auth()->id();
 
+        // Ensure table_name is set
+        if (empty($data['table_name'])) {
+            $data['table_name'] = $data['name'];
+        }
+
+        // Ensure display_name is set
+        if (empty($data['display_name'])) {
+            $data['display_name'] = \Illuminate\Support\Str::headline($data['name']);
+        }
+
         return $data;
     }
 
     protected function afterCreate(): void
     {
-        $record = $this->record;
-        $tableName = $record->table_name;
+        $model = $this->record;
+        $tableName = $model->table_name;
 
         if (Schema::hasTable($tableName)) {
             Notification::make()
                 ->warning()
-                ->title('Table already exists')
-                ->body("The database table \"{$tableName}\" already exists. Skipped creation.")
+                ->title('Table Exists')
+                ->body("The table '{$tableName}' already exists. Only metadata was saved.")
                 ->send();
-
             return;
         }
 
-        $fields = $record->fields;
+        try {
+            Schema::create($tableName, function (Blueprint $table) use ($model) {
+                $table->id();
 
-        Schema::create($tableName, function (Blueprint $table) use ($record, $fields) {
-            $table->id();
+                foreach ($model->fields as $field) {
+                    $column = match ($field->type) {
+                        'string', 'file' => $table->string($field->name),
+                        'text' => $table->text($field->name),
+                        'integer' => $table->integer($field->name),
+                        'boolean' => $table->boolean($field->name),
+                        'date' => $table->date($field->name),
+                        'datetime' => $table->dateTime($field->name),
+                        default => $table->string($field->name),
+                    };
 
-            foreach ($fields as $field) {
-                $column = $this->addColumnToTable($table, $field);
-
-                if ($column) {
                     if (! $field->is_required) {
                         $column->nullable();
                     }
-
                     if ($field->is_unique) {
                         $column->unique();
                     }
-
-                    if ($field->default_value !== null && $field->default_value !== '') {
-                        $column->default($field->default_value);
-                    }
-
-                    if ($field->is_indexed) {
-                        $column->index();
-                    }
                 }
-            }
 
-            if ($record->has_timestamps) {
                 $table->timestamps();
-            }
+            });
 
-            if ($record->has_soft_deletes) {
-                $table->softDeletes();
-            }
-        });
+            Notification::make()
+                ->success()
+                ->title('Table Created Successfully')
+                ->body("Database table '{$tableName}' is now ready!")
+                ->send();
 
-        Notification::make()
-            ->success()
-            ->title('Table created')
-            ->body("Database table \"{$tableName}\" created with " . $fields->count() . " column(s).")
-            ->send();
-    }
-
-    private function addColumnToTable(Blueprint $table, DynamicField $field)
-    {
-        $name = $field->name;
-
-        return match ($field->getDatabaseType()) {
-            'string' => $table->string($name),
-            'text' => $table->text($name),
-            'bigInteger' => $table->bigInteger($name),
-            'decimal' => $table->decimal($name, 16, 4),
-            'boolean' => $table->boolean($name)->default(false),
-            'date' => $table->date($name),
-            'dateTime' => $table->dateTime($name),
-            'time' => $table->time($name),
-            'json' => $table->json($name),
-            'uuid' => $table->uuid($name),
-            default => $table->string($name),
-        };
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
+        } catch (\Exception $e) {
+            Notification::make()
+                ->danger()
+                ->title('Error Creating Table')
+                ->body($e->getMessage())
+                ->send();
+        }
     }
 }

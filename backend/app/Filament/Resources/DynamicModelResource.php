@@ -6,6 +6,7 @@ use App\Filament\Resources\DynamicModelResource\Pages;
 use App\Models\DynamicModel;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,138 +17,81 @@ class DynamicModelResource extends Resource
     protected static ?string $model = DynamicModel::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
-
     protected static ?string $navigationLabel = 'Table Builder';
-
-    protected static ?string $modelLabel = 'Table';
-
-    protected static ?string $pluralModelLabel = 'Tables';
+    protected static ?string $modelLabel = 'Database Table';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Table Info')
+                Forms\Components\Section::make('Table Details')
+                    ->description('Define the main details of your database table.')
                     ->schema([
                         Forms\Components\TextInput::make('name')
-                            ->label('Table Name')
+                            ->label('Table Name (SQL)')
                             ->required()
-                            ->maxLength(64)
-                            ->alphaNum()
-                            ->unique(ignoreRecord: true)
+                            ->maxLength(255)
+                            ->placeholder('e.g. blog_posts')
                             ->live(onBlur: true)
-                            ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
+                            ->afterStateUpdated(function (Set $set, ?string $state) {
                                 if ($state) {
-                                    $slug = Str::snake(Str::plural($state));
+                                    $slug = Str::slug($state, '_');
+                                    $set('name', $slug);
                                     $set('table_name', $slug);
                                     $set('display_name', Str::headline($state));
                                 }
-                            }),
-
-                        Forms\Components\TextInput::make('table_name')
-                            ->required()
-                            ->maxLength(64)
-                            ->unique(ignoreRecord: true)
-                            ->helperText('Actual database table name'),
+                            })
+                            ->helperText('This will be the physical table name in your database.'),
 
                         Forms\Components\TextInput::make('display_name')
-                            ->required()
-                            ->maxLength(100),
+                            ->label('Display Name')
+                            ->placeholder('e.g. Blog Posts')
+                            ->maxLength(255),
 
-                        Forms\Components\Textarea::make('description')
-                            ->rows(2)
-                            ->maxLength(500),
+                        Forms\Components\Hidden::make('table_name'),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Options')
-                    ->schema([
-                        Forms\Components\Toggle::make('has_timestamps')
-                            ->label('Add created_at / updated_at')
-                            ->default(true),
-
-                        Forms\Components\Toggle::make('has_soft_deletes')
-                            ->label('Soft Deletes')
-                            ->default(false),
-
-                        Forms\Components\Toggle::make('generate_api')
-                            ->label('Auto-generate REST API')
-                            ->default(true),
-
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active')
-                            ->default(true),
-                    ])->columns(4),
-
-                Forms\Components\Section::make('Columns')
+                Forms\Components\Section::make('Table Columns')
+                    ->description('Add columns to your table visually.')
                     ->schema([
                         Forms\Components\Repeater::make('fields')
-                            ->relationship()
+                            ->relationship('fields')
                             ->schema([
                                 Forms\Components\TextInput::make('name')
                                     ->label('Column Name')
                                     ->required()
-                                    ->maxLength(64)
+                                    ->placeholder('e.g. title')
                                     ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
-                                        if ($state) {
-                                            $set('display_name', Str::headline($state));
-                                        }
-                                    }),
+                                    ->afterStateUpdated(fn (Set $set, ?string $state) =>
+                                        $set('display_name', $state ? Str::headline($state) : '')
+                                    ),
 
-                                Forms\Components\TextInput::make('display_name')
-                                    ->required()
-                                    ->maxLength(100),
+                                Forms\Components\Hidden::make('display_name'),
 
                                 Forms\Components\Select::make('type')
-                                    ->label('Type')
-                                    ->required()
                                     ->options([
-                                        'string' => 'String',
-                                        'text' => 'Text',
-                                        'integer' => 'Integer',
-                                        'bigint' => 'Big Integer',
-                                        'float' => 'Float',
-                                        'decimal' => 'Decimal',
-                                        'boolean' => 'Boolean',
+                                        'string' => 'String (Short Text)',
+                                        'text' => 'Text (Long Description)',
+                                        'integer' => 'Integer (Number)',
+                                        'boolean' => 'Boolean (True/False)',
                                         'date' => 'Date',
-                                        'datetime' => 'DateTime',
-                                        'json' => 'JSON',
-                                        'enum' => 'Enum / Select',
-                                        'file' => 'File',
-                                        'image' => 'Image',
+                                        'datetime' => 'Date & Time',
+                                        'file' => 'File / Image',
                                     ])
-                                    ->default('string'),
+                                    ->required(),
 
-                                Forms\Components\Toggle::make('is_required')
+                                Forms\Components\Checkbox::make('is_required')
                                     ->label('Required')
-                                    ->default(false)
-                                    ->inline(false),
+                                    ->default(false),
 
-                                Forms\Components\Toggle::make('is_unique')
-                                    ->label('Unique')
-                                    ->default(false)
-                                    ->inline(false),
-
-                                Forms\Components\TextInput::make('default_value')
-                                    ->label('Default')
-                                    ->maxLength(255),
+                                Forms\Components\Checkbox::make('is_unique')
+                                    ->label('Unique Value')
+                                    ->default(false),
                             ])
-                            ->columns(6)
+                            ->columns(5)
+                            ->addActionLabel('Add New Column')
+                            ->grid(1)
                             ->defaultItems(1)
-                            ->addActionLabel('+ Add Column')
-                            ->reorderable()
-                            ->reorderableWithButtons()
-                            ->collapsible()
-                            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
-                            ->mutateRelationshipDataBeforeCreateUsing(function (array $data, int $index): array {
-                                $data['order'] = $index;
-                                $data['is_searchable'] = true;
-                                $data['is_filterable'] = true;
-                                $data['is_sortable'] = true;
-                                $data['show_in_list'] = true;
-                                $data['show_in_detail'] = true;
-                                return $data;
-                            }),
                     ]),
             ]);
     }
@@ -157,35 +101,22 @@ class DynamicModelResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Name')
                     ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('table_name')
-                    ->label('DB Table')
-                    ->searchable()
-                    ->badge()
-                    ->color('gray'),
-
+                    ->sortable()
+                    ->weight('bold')
+                    ->color('primary'),
+                Tables\Columns\TextColumn::make('display_name')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('fields_count')
                     ->counts('fields')
-                    ->label('Columns'),
-
-                Tables\Columns\IconColumn::make('generate_api')
-                    ->label('API')
-                    ->boolean(),
-
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean(),
-
+                    ->label('Total Columns')
+                    ->badge(),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime('M j, Y')
-                    ->sortable(),
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
-                Tables\Filters\TernaryFilter::make('is_active'),
-            ])
+            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
