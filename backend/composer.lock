@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cadfb18ef17171ceb9b4bd610c369916",
+    "content-hash": "4975f0feedf67a8da81d09cae57db821",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -223,6 +223,60 @@
             "time": "2026-01-20T09:46:32+00:00"
         },
         {
+            "name": "bostjanob/filament-file-manager",
+            "version": "v0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/BostjanOb/filament-file-manager.git",
+                "reference": "b6549cdeb0bf8af197b59b58df319c638e6093f6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/BostjanOb/filament-file-manager/zipball/b6549cdeb0bf8af197b59b58df319c638e6093f6",
+                "reference": "b6549cdeb0bf8af197b59b58df319c638e6093f6",
+                "shasum": ""
+            },
+            "require": {
+                "calebporzio/sushi": "^v2.5",
+                "filament/support": "^3.0",
+                "spatie/laravel-package-tools": "^1.16"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "BostjanOb\\FilamentFileManager\\FilamentFileManagerServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "BostjanOb\\FilamentFileManager\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Bostjan",
+                    "email": "bostjan@muha.cc"
+                }
+            ],
+            "description": "Filament File Manager",
+            "homepage": "https://github.com/BostjanOb/filament-file-manager",
+            "keywords": [
+                "filament",
+                "file-manager"
+            ],
+            "support": {
+                "issues": "https://github.com/BostjanOb/filament-file-manager/issues",
+                "source": "https://github.com/BostjanOb/filament-file-manager/tree/v0.1"
+            },
+            "time": "2024-02-18T16:50:33+00:00"
+        },
+        {
             "name": "brick/math",
             "version": "0.14.1",
             "source": {
@@ -281,6 +335,60 @@
                 }
             ],
             "time": "2025-11-24T14:40:29+00:00"
+        },
+        {
+            "name": "calebporzio/sushi",
+            "version": "v2.5.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/calebporzio/sushi.git",
+                "reference": "bf184973f943216b2aaa8dbc79631ea806038bb1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/calebporzio/sushi/zipball/bf184973f943216b2aaa8dbc79631ea806038bb1",
+                "reference": "bf184973f943216b2aaa8dbc79631ea806038bb1",
+                "shasum": ""
+            },
+            "require": {
+                "ext-pdo_sqlite": "*",
+                "ext-sqlite3": "*",
+                "illuminate/database": "^5.8 || ^6.0 || ^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0 || ^12.0",
+                "illuminate/support": "^5.8 || ^6.0 || ^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0 || ^12.0",
+                "php": "^7.1.3|^8.0"
+            },
+            "require-dev": {
+                "doctrine/dbal": "^2.9 || ^3.1.4",
+                "orchestra/testbench": "3.8.* || 3.9.* || ^4.0 || ^5.0 || ^6.0 || ^7.0 || ^8.0 || ^9.0 || ^10.0",
+                "phpunit/phpunit": "^7.5 || ^8.4 || ^9.0 || ^10.0 || ^11.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Sushi\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Caleb Porzio",
+                    "email": "calebporzio@gmail.com"
+                }
+            ],
+            "description": "Eloquent's missing \"array\" driver.",
+            "support": {
+                "source": "https://github.com/calebporzio/sushi/tree/v2.5.3"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/calebporzio",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-02-13T21:03:57+00:00"
         },
         {
             "name": "carbonphp/carbon-doctrine-types",
@@ -11404,5 +11512,5 @@
         "php": "^8.2"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }
