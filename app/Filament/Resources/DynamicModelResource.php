@@ -321,16 +321,8 @@ class DynamicModelResource extends Resource
                             DbSchema::create($tableName, function (Blueprint $table) use ($record) {
                                 $table->id();
                                 foreach ($record->fields as $field) {
-                                    $column = match ($field->type) {
-                                        'string', 'file' => $table->string($field->name),
-                                        'text' => $table->text($field->name),
-                                        'integer' => $table->integer($field->name),
-                                        'boolean' => $table->boolean($field->name),
-                                        'date' => $table->date($field->name),
-                                        'datetime' => $table->dateTime($field->name),
-                                        'json' => $table->json($field->name), // CRITICAL: Proper JSON column
-                                        default => $table->string($field->name),
-                                    };
+                                    $type = $field->getDatabaseType();
+                                    $column = $table->{$type}($field->name);
                                     if (!$field->is_required) $column->nullable();
                                     if ($field->is_unique) $column->unique();
                                 }
@@ -349,16 +341,8 @@ class DynamicModelResource extends Resource
                             DbSchema::table($tableName, function (Blueprint $table) use ($record, $tableName, &$columnsAdded) {
                                 foreach ($record->fields as $field) {
                                     if (!DbSchema::hasColumn($tableName, $field->name)) {
-                                        $column = match ($field->type) {
-                                            'string', 'file' => $table->string($field->name),
-                                            'text' => $table->text($field->name),
-                                            'integer' => $table->integer($field->name),
-                                            'boolean' => $table->boolean($field->name),
-                                            'date' => $table->date($field->name),
-                                            'datetime' => $table->dateTime($field->name),
-                                            'json' => $table->json($field->name),
-                                            default => $table->string($field->name),
-                                        };
+                                        $type = $field->getDatabaseType();
+                                        $column = $table->{$type}($field->name);
                                         if (!$field->is_required) $column->nullable();
                                         $columnsAdded++;
                                     }
