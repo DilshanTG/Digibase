@@ -7,9 +7,9 @@ use App\Services\CodeGeneratorService;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\MarkdownEditor;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Tabs;
+use Filament\Schemas\Components\Tabs;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -39,7 +39,8 @@ class CodeGenerator extends Page implements HasForms
     public array $generatedFiles = [];
     public int $activeTab = 0;
 
-    public function form(Form $form): Form
+    // We remove the strict 'Form' type hint to allow 'Schema' objects if the framework passes them
+    public function form($form): \Filament\Forms\Form|\Filament\Schemas\Schema
     {
         return $form
             ->schema([

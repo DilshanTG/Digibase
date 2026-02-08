@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "060bd8dded856f2434d8c7be5a31cf80",
+    "content-hash": "24f8e55616b53d991bfe5f941731d62f",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -2502,6 +2502,75 @@
                 }
             ],
             "time": "2026-01-26T10:12:52+00:00"
+        },
+        {
+            "name": "inerba/filament-db-config",
+            "version": "v1.3.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/inerba/filament-db-config.git",
+                "reference": "d6f1e386b46dc2741d119f6b6d6aba8d60f80179"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/inerba/filament-db-config/zipball/d6f1e386b46dc2741d119f6b6d6aba8d60f80179",
+                "reference": "d6f1e386b46dc2741d119f6b6d6aba8d60f80179",
+                "shasum": ""
+            },
+            "require": {
+                "filament/filament": "^4.0|^5.0",
+                "php": "^8.2",
+                "spatie/laravel-package-tools": "^1.15.0"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.14",
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^4.0",
+                "phpstan/phpstan": "^2.1"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "DbConfig": "Inerba\\DbConfig\\Facades\\DbConfig"
+                    },
+                    "providers": [
+                        "Inerba\\DbConfig\\DbConfigServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
+                "psr-4": {
+                    "Inerba\\DbConfig\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Francesco Apruzzese",
+                    "email": "inerba@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A Filament plugin for database-backed application settings and editable content, with caching and easy page generation.",
+            "homepage": "https://github.com/inerba/filament-db-config",
+            "keywords": [
+                "filament",
+                "filament-plugin",
+                "laravel",
+                "laravel-filament"
+            ],
+            "support": {
+                "issues": "https://github.com/inerba/filament-db-config/issues",
+                "source": "https://github.com/inerba/filament-db-config"
+            },
+            "time": "2026-02-05T17:12:56+00:00"
         },
         {
             "name": "kirschbaum-development/eloquent-power-joins",

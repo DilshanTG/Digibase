@@ -19,6 +19,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use MWGuerra\FileManager\FileManagerPlugin;
 use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
+use Inerba\DbConfig\DbConfigPlugin;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
@@ -53,6 +54,9 @@ class AdminPanelProvider extends PanelProvider
                 FilamentSpatieLaravelBackupPlugin::make()
                     ->usingPolingInterval('10s')
                     ->noTimeout()
+            )
+            ->plugin(
+                DbConfigPlugin::make()
             )
             ->navigationItems([
                 NavigationItem::make('API Docs')

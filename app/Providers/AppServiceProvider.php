@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
-use App\Models\Setting;
 use Filament\Facades\Filament;
 use Filament\Support\Colors\Color;
+use Dedoc\Scramble\Scramble;
+use Dedoc\Scramble\Support\Generator\OpenApi;
+use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
@@ -18,61 +20,56 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Scramble::extendOpenApi(function (OpenApi $openApi) {
+            $openApi->secure(
+                SecurityScheme::http('bearer')
+            );
+        });
+
         $this->configureBranding();
     }
 
     private function configureBranding(): void
     {
-        // Guard: skip if DB isn't ready (migrations haven't run yet)
         try {
-            if (! Schema::hasTable('settings')) {
-                return;
-            }
-        } catch (\Exception) {
-            return;
-        }
+            if (!function_exists('db_config')) return;
 
-        $settings = Setting::where('group', 'branding')
-            ->pluck('value', 'key')
-            ->toArray();
+            // Branding
+            $appName = db_config('branding.site_name');
+            $logo = db_config('branding.site_logo');
+            $primaryColor = db_config('branding.primary_color');
 
-        if (empty($settings)) {
-            return;
-        }
-
-        // Override Laravel app name
-        if (! empty($settings['app_name'])) {
-            config(['app.name' => $settings['app_name']]);
-        }
-
-        // Override Filament panel branding dynamically
-        Filament::serving(function () use ($settings) {
-            $panel = Filament::getCurrentPanel();
-
-            if (! $panel) {
-                return;
+            // Override Laravel app name
+            if ($appName) {
+                config(['app.name' => $appName]);
             }
 
-            if (! empty($settings['app_name'])) {
-                $name = is_string($settings['app_name']) ? $settings['app_name'] : (string) $settings['app_name'];
-                $panel->brandName(trim($name, '"'));
-            }
+            // Override Filament panel branding dynamically
+            Filament::serving(function () use ($appName, $logo, $primaryColor) {
+                $panel = Filament::getCurrentPanel();
 
-            if (! empty($settings['logo_url'])) {
-                $logo = $settings['logo_url'];
+                if (! $panel) {
+                    return;
+                }
+
+                if ($appName) {
+                    $panel->brandName($appName);
+                }
+
                 if ($logo) {
                     $logoUrl = str_starts_with($logo, 'http') ? $logo : Storage::url($logo);
                     $panel->brandLogo($logoUrl)->brandLogoHeight('2rem');
                 }
-            }
 
-            if (! empty($settings['primary_color'])) {
-                $color = is_string($settings['primary_color']) ? $settings['primary_color'] : (string) $settings['primary_color'];
-                $color = trim($color, '"');
-                if ($color) {
-                    $panel->colors(['primary' => Color::hex($color)]);
+                if ($primaryColor) {
+                    $color = trim($primaryColor, '"');
+                    if ($color) {
+                        $panel->colors(['primary' => Color::hex($color)]);
+                    }
                 }
-            }
-        });
+            });
+        } catch (\Exception) {
+            return;
+        }
     }
 }

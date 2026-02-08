@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\DynamicModelResource\Pages;
+use App\Filament\Resources\DynamicModelResource\RelationManagers;
 use App\Models\DynamicModel;
 use Filament\Forms;
 use Filament\Schemas\Components\Tabs;
@@ -369,6 +370,36 @@ class DynamicModelResource extends Resource
                     }),
                 EditAction::make(),
                 DeleteAction::make(),
+                Action::make('destroy_table')
+                    ->label('Destroy DB Table')
+                    ->color('danger')
+                    ->icon('heroicon-o-trash')
+                    ->requiresConfirmation()
+                    ->modalHeading('⚠️ NUCLEAR OPTION: Destroy Database Table')
+                    ->modalDescription('This will PERMANENTLY DELETE the physical table and ALL DATA. This cannot be undone.')
+                    ->form([
+                        Forms\Components\TextInput::make('confirmation_name')
+                            ->label(fn ($record) => "Type '{$record->table_name}' to confirm")
+                            ->required()
+                            ->rule(fn ($record) => function ($attribute, $value, $fail) use ($record) {
+                                if ($value !== $record->table_name) {
+                                    $fail('The table name does not match.');
+                                }
+                            }),
+                    ])
+                    ->action(function ($record, array $data) {
+                        // 1. Drop the Physical Table
+                        DbSchema::dropIfExists($record->table_name);
+                        
+                        // 2. Delete the Dynamic Model Record
+                        $record->delete();
+
+                        Notification::make()
+                            ->title('Table Destroyed')
+                            ->body("The table '{$record->table_name}' has been wiped from the database.")
+                            ->danger()
+                            ->send();
+                    }),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -382,7 +413,9 @@ class DynamicModelResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            RelationManagers\RelationshipsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

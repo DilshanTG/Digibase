@@ -13,6 +13,19 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+    Route::get('/settings/public', function() {
+        if (!function_exists('db_config')) return response()->json([], 503);
+        
+        return response()->json([
+            'app_name' => db_config('branding.site_name') ?? 'Digibase',
+            'logo_url' => db_config('branding.site_logo'),
+            'features' => [
+                'google_login' => db_config('auth.google_enabled') && !empty(db_config('auth.google_client_id')),
+                'github_login' => db_config('auth.github_enabled') && !empty(db_config('auth.github_client_id')),
+            ]
+        ]);
+    });
 });
 
 // Social OAuth
@@ -77,11 +90,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/tokens', [\App\Http\Controllers\Api\ApiKeyController::class, 'index']);
     Route::post('/tokens', [\App\Http\Controllers\Api\ApiKeyController::class, 'store']);
     Route::delete('/tokens/{id}', [\App\Http\Controllers\Api\ApiKeyController::class, 'destroy']);
-
-    // Settings Management
-    Route::get('/settings', [\App\Http\Controllers\Api\SettingsController::class, 'index']);
-    Route::get('/settings/{group}', [\App\Http\Controllers\Api\SettingsController::class, 'show']);
-    Route::put('/settings', [\App\Http\Controllers\Api\SettingsController::class, 'update']);
 
     // Migration Management
     Route::get('/migrations', [\App\Http\Controllers\Api\MigrationController::class, 'index']);
