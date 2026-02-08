@@ -8,15 +8,17 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
+use BackedEnum;
 use Filament\Pages\Page;
+use Filament\Schemas\Schema;
+use UnitEnum;
 
 class ManageSettings extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     protected static ?string $navigationLabel = 'Settings';
 
@@ -24,9 +26,9 @@ class ManageSettings extends Page implements HasForms
 
     protected static ?int $navigationSort = 10;
 
-    protected static ?string $navigationGroup = 'Admin';
+    protected static string|UnitEnum|null $navigationGroup = 'Admin';
 
-    protected static string $view = 'filament.pages.manage-settings';
+    protected string $view = 'filament.pages.manage-settings';
 
     public ?string $app_name = '';
     public ?string $app_description = '';
@@ -43,7 +45,7 @@ class ManageSettings extends Page implements HasForms
         $this->support_email = $this->getSetting('support_email', '');
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([

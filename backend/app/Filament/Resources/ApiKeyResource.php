@@ -4,25 +4,27 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ApiKeyResource\Pages;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use BackedEnum;
 use Laravel\Sanctum\PersonalAccessToken;
+use UnitEnum;
 
 class ApiKeyResource extends Resource
 {
     protected static ?string $model = PersonalAccessToken::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-key';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-key';
 
     protected static ?string $navigationLabel = 'API Keys';
 
     protected static ?string $modelLabel = 'API Key';
 
-    protected static ?string $navigationGroup = 'Admin';
+    protected static string|UnitEnum|null $navigationGroup = 'Admin';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([

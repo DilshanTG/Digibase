@@ -9,15 +9,16 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
+use BackedEnum;
 use Filament\Pages\Page;
+use Filament\Schemas\Schema;
 
 class CodeGenerator extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-code-bracket';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-code-bracket';
 
     protected static ?string $navigationLabel = 'Code Generator';
 
@@ -25,7 +26,7 @@ class CodeGenerator extends Page implements HasForms
 
     protected static ?int $navigationSort = 5;
 
-    protected static string $view = 'filament.pages.code-generator';
+    protected string $view = 'filament.pages.code-generator';
 
     // Form state
     public ?int $model_id = null;
@@ -38,7 +39,7 @@ class CodeGenerator extends Page implements HasForms
     public array $generatedFiles = [];
     public int $activeTab = 0;
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([

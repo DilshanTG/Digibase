@@ -5,22 +5,23 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\DynamicModelResource\Pages;
 use App\Models\DynamicModel;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use BackedEnum;
 use Illuminate\Support\Str;
 
 class DynamicModelResource extends Resource
 {
     protected static ?string $model = DynamicModel::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-circle-stack';
     protected static ?string $navigationLabel = 'Table Builder';
     protected static ?string $modelLabel = 'Database Table';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -76,6 +77,7 @@ class DynamicModelResource extends Resource
                                         'boolean' => 'Boolean (True/False)',
                                         'date' => 'Date',
                                         'datetime' => 'Date & Time',
+                                        'json' => 'JSON / Object',
                                         'file' => 'File / Image',
                                     ])
                                     ->required(),
@@ -93,6 +95,16 @@ class DynamicModelResource extends Resource
                             ->grid(1)
                             ->defaultItems(1)
                     ]),
+
+                Forms\Components\Section::make('Advanced')
+                    ->description('Custom settings as JSON (optional).')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\CodeEditor::make('settings')
+                            ->label('Settings (JSON)')
+                            ->helperText('Advanced config in JSON format.')
+                            ->language('json'),
+                    ]),
             ]);
     }
 
@@ -100,23 +112,66 @@ class DynamicModelResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                Tables\Columns\TextInputColumn::make('name')
+                    ->label('Table Name')
                     ->searchable()
                     ->sortable()
-                    ->weight('bold')
-                    ->color('primary'),
-                Tables\Columns\TextColumn::make('display_name')
-                    ->searchable(),
+                    ->rules(['required', 'max:255']),
+
+                Tables\Columns\TextInputColumn::make('display_name')
+                    ->label('Display Name')
+                    ->searchable()
+                    ->sortable()
+                    ->rules(['required', 'max:255']),
+
+                Tables\Columns\TextColumn::make('table_name')
+                    ->label('DB Table')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('fields_count')
                     ->counts('fields')
-                    ->label('Total Columns')
-                    ->badge(),
+                    ->label('Columns')
+                    ->badge()
+                    ->color('primary')
+                    ->sortable(),
+
+                Tables\Columns\ToggleColumn::make('is_active')
+                    ->label('Active')
+                    ->sortable(),
+
+                Tables\Columns\ToggleColumn::make('generate_api')
+                    ->label('API')
+                    ->sortable(),
+
+                Tables\Columns\ToggleColumn::make('has_timestamps')
+                    ->label('Timestamps')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\ToggleColumn::make('has_soft_deletes')
+                    ->label('Soft Delete')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Owner')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->dateTime('M j, Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([])
+            ->defaultSort('created_at', 'desc')
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Active'),
+                Tables\Filters\TernaryFilter::make('generate_api')
+                    ->label('API Enabled'),
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
@@ -125,7 +180,10 @@ class DynamicModelResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->striped()
+            ->paginated([10, 25, 50, 100])
+            ->poll('30s');
     }
 
     public static function getRelations(): array
