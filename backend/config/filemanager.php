@@ -156,7 +156,7 @@ return [
     |
     */
     'schema_example' => [
-        'enabled' => true,
+        'enabled' => false,
     ],
 
     /*

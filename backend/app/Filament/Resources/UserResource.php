@@ -9,6 +9,12 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Schemas\Components\Section;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use BackedEnum;
 use Illuminate\Support\Facades\Hash;
 use UnitEnum;
@@ -25,7 +31,7 @@ class UserResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('User Info')
+                Section::make('User Info')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required()
@@ -76,12 +82,12 @@ class UserResource extends Resource
             ])
             ->filters([])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

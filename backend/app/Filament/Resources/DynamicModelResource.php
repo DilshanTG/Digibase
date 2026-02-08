@@ -5,11 +5,22 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\DynamicModelResource\Pages;
 use App\Models\DynamicModel;
 use Filament\Forms;
-use Filament\Forms\Set;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\CodeEditor\Enums\Language;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Schema as DbSchema;
+use Illuminate\Database\Schema\Blueprint;
 use BackedEnum;
 use Illuminate\Support\Str;
 
@@ -25,7 +36,7 @@ class DynamicModelResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Table Details')
+                Section::make('Table Details')
                     ->description('Define the main details of your database table.')
                     ->schema([
                         Forms\Components\TextInput::make('name')
@@ -52,7 +63,7 @@ class DynamicModelResource extends Resource
                         Forms\Components\Hidden::make('table_name'),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Table Columns')
+                Section::make('Table Columns')
                     ->description('Add columns to your table visually.')
                     ->schema([
                         Forms\Components\Repeater::make('fields')
@@ -96,14 +107,14 @@ class DynamicModelResource extends Resource
                             ->defaultItems(1)
                     ]),
 
-                Forms\Components\Section::make('Advanced')
+                Section::make('Advanced')
                     ->description('Custom settings as JSON (optional).')
                     ->collapsed()
                     ->schema([
                         Forms\Components\CodeEditor::make('settings')
                             ->label('Settings (JSON)')
                             ->helperText('Advanced config in JSON format.')
-                            ->language('json'),
+                            ->language(Language::Json),
                     ]),
             ]);
     }
@@ -173,12 +184,49 @@ class DynamicModelResource extends Resource
                     ->label('API Enabled'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Action::make('view_data')
+                    ->label('Data')
+                    ->icon('heroicon-o-table-cells')
+                    ->color('success')
+                    ->url(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['tableId' => $record->id])),
+                Action::make('sync_db')
+                    ->label('Sync')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->action(function (DynamicModel $record) {
+                        $tableName = $record->table_name;
+                        
+                        if (!DbSchema::hasTable($tableName)) {
+                            DbSchema::create($tableName, function (Blueprint $table) use ($record) {
+                                $table->id();
+                                foreach ($record->fields as $field) {
+                                    $column = match ($field->type) {
+                                        'string', 'file' => $table->string($field->name),
+                                        'text' => $table->text($field->name),
+                                        'integer' => $table->integer($field->name),
+                                        'boolean' => $table->boolean($field->name),
+                                        'date' => $table->date($field->name),
+                                        'datetime' => $table->dateTime($field->name),
+                                        default => $table->string($field->name),
+                                    };
+                                    if (!$field->is_required) $column->nullable();
+                                    if ($field->is_unique) $column->unique();
+                                }
+                                $table->timestamps();
+                            });
+                            Notification::make()->success()->title('Table Created')->send();
+                        } else {
+                            // Logic for updating table schema if needed could go here
+                            Notification::make()->info()->title('Table already exists')->send();
+                        }
+                    }),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

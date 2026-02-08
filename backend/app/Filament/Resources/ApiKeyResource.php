@@ -8,6 +8,12 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Schemas\Components\Section;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use BackedEnum;
 use Laravel\Sanctum\PersonalAccessToken;
 use UnitEnum;
@@ -28,32 +34,33 @@ class ApiKeyResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Generate API Token')
+                Section::make('Token Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Token Name')
-                            ->required()
-                            ->maxLength(255)
-                            ->placeholder('e.g. Mobile App, CI/CD Pipeline'),
-
+                        // 1. Select User manually (Don't use ->relationship!)
                         Forms\Components\Select::make('tokenable_id')
                             ->label('User')
-                            ->relationship('tokenable', 'name')
+                            ->options(\App\Models\User::pluck('name', 'id'))
                             ->searchable()
-                            ->preload()
                             ->required(),
 
+                        // 2. Token Name
+                        Forms\Components\TextInput::make('name')
+                            ->label('Token Name (e.g. Mobile App)')
+                            ->required(),
+
+                        // 3. Abilities
                         Forms\Components\CheckboxList::make('abilities')
+                            ->label('Permissions')
                             ->options([
-                                '*' => 'Full Access (All Permissions)',
+                                '*' => 'Full Access (*)',
                                 'read' => 'Read Only',
-                                'create' => 'Create Records',
-                                'update' => 'Update Records',
-                                'delete' => 'Delete Records',
+                                'create' => 'Create',
+                                'update' => 'Update',
+                                'delete' => 'Delete',
                             ])
                             ->default(['*'])
                             ->columns(3),
-                    ])->columns(2),
+                    ])
             ]);
     }
 
@@ -87,12 +94,12 @@ class ApiKeyResource extends Resource
             ])
             ->filters([])
             ->actions([
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->label('Revoke'),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
                         ->label('Revoke Selected'),
                 ]),
             ]);

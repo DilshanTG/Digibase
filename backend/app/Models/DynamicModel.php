@@ -33,6 +33,7 @@ class DynamicModel extends Model
             'has_soft_deletes' => 'boolean',
             'generate_api' => 'boolean',
             'settings' => 'array',
+            'is_syncing' => 'boolean',
         ];
     }
 
