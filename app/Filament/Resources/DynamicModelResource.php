@@ -317,6 +317,7 @@ class DynamicModelResource extends Resource
                         $tableName = $record->table_name;
                         
                         if (!DbSchema::hasTable($tableName)) {
+                            // CREATE NEW TABLE
                             DbSchema::create($tableName, function (Blueprint $table) use ($record) {
                                 $table->id();
                                 foreach ($record->fields as $field) {
@@ -327,17 +328,54 @@ class DynamicModelResource extends Resource
                                         'boolean' => $table->boolean($field->name),
                                         'date' => $table->date($field->name),
                                         'datetime' => $table->dateTime($field->name),
+                                        'json' => $table->json($field->name), // CRITICAL: Proper JSON column
                                         default => $table->string($field->name),
                                     };
                                     if (!$field->is_required) $column->nullable();
                                     if ($field->is_unique) $column->unique();
                                 }
                                 $table->timestamps();
+                                
+                                // CRITICAL: Add soft deletes column if enabled
+                                if ($record->has_soft_deletes) {
+                                    $table->softDeletes();
+                                }
                             });
                             Notification::make()->success()->title('Table Created')->send();
                         } else {
-                            // Logic for updating table schema if needed could go here
-                            Notification::make()->info()->title('Table already exists')->send();
+                            // UPDATE EXISTING TABLE - Add missing columns
+                            $columnsAdded = 0;
+                            
+                            DbSchema::table($tableName, function (Blueprint $table) use ($record, $tableName, &$columnsAdded) {
+                                foreach ($record->fields as $field) {
+                                    if (!DbSchema::hasColumn($tableName, $field->name)) {
+                                        $column = match ($field->type) {
+                                            'string', 'file' => $table->string($field->name),
+                                            'text' => $table->text($field->name),
+                                            'integer' => $table->integer($field->name),
+                                            'boolean' => $table->boolean($field->name),
+                                            'date' => $table->date($field->name),
+                                            'datetime' => $table->dateTime($field->name),
+                                            'json' => $table->json($field->name),
+                                            default => $table->string($field->name),
+                                        };
+                                        if (!$field->is_required) $column->nullable();
+                                        $columnsAdded++;
+                                    }
+                                }
+                                
+                                // Add soft deletes if enabled and column doesn't exist
+                                if ($record->has_soft_deletes && !DbSchema::hasColumn($tableName, 'deleted_at')) {
+                                    $table->softDeletes();
+                                    $columnsAdded++;
+                                }
+                            });
+                            
+                            if ($columnsAdded > 0) {
+                                Notification::make()->success()->title("{$columnsAdded} column(s) added")->send();
+                            } else {
+                                Notification::make()->info()->title('Schema is up to date')->send();
+                            }
                         }
                     }),
                 EditAction::make(),

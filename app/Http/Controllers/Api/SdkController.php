@@ -32,17 +32,21 @@ class Digibase {
         }
     }
 
-    async request(method, endpoint, data = null, headers = {}) {
+    async request(method, endpoint, data = null, headers = {}, responseType = 'json') {
         const url = `\${this.baseUrl}/api\${endpoint}`;
         
         const config = {
             method,
             headers: {
-                'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 ...headers
             }
         };
+
+        // Only set Content-Type for JSON requests with body
+        if (data && responseType === 'json') {
+            config.headers['Content-Type'] = 'application/json';
+        }
 
         if (this.token) {
             config.headers['Authorization'] = `Bearer \${this.token}`;
@@ -53,13 +57,25 @@ class Digibase {
         }
 
         const response = await fetch(url, config);
-        const json = await response.json();
 
         if (!response.ok) {
-            throw { status: response.status, ...json };
+            // Try to parse error as JSON
+            try {
+                const errorJson = await response.json();
+                throw { status: response.status, ...errorJson };
+            } catch (e) {
+                throw { status: response.status, message: response.statusText };
+            }
         }
 
-        return json;
+        // Handle different response types
+        if (responseType === 'blob') {
+            return await response.blob();
+        }
+        if (responseType === 'text') {
+            return await response.text();
+        }
+        return await response.json();
     }
 
     // --- Auth ---
@@ -84,6 +100,9 @@ class Digibase {
             },
             user: async () => {
                 return await this.request('GET', '/user');
+            },
+            isAuthenticated: () => {
+                return !!this.token;
             }
         };
     }
@@ -101,12 +120,40 @@ class Digibase {
                 if (path.startsWith('http')) return path;
                 return `\${this.baseUrl}/storage/\${path}`;
             },
+            getPrivateUrl: (id) => {
+                return `\${this.baseUrl}/api/storage/\${id}/download`;
+            },
             download: async (id) => {
-                 // For private files download via API
-                 const res = await this.request('GET', `/storage/\${id}/download`);
-                 return res;
+                // For private files - returns Blob for binary download
+                return await this.request('GET', `/storage/\${id}/download`, null, {}, 'blob');
+            },
+            list: async (params = {}) => {
+                const queryString = new URLSearchParams(params).toString();
+                return await this.request('GET', `/storage\${queryString ? '?' + queryString : ''}`);
+            },
+            upload: async (file, options = {}) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                if (options.bucket) formData.append('bucket', options.bucket);
+                if (options.path) formData.append('path', options.path);
+
+                const url = `\${this.baseUrl}/api/storage`;
+                const headers = { 'Accept': 'application/json' };
+                if (this.token) {
+                    headers['Authorization'] = `Bearer \${this.token}`;
+                }
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: formData
+                });
+                return await response.json();
+            },
+            delete: async (id) => {
+                return await this.request('DELETE', `/storage/\${id}`);
             }
-        }
+        };
     }
 }
 
