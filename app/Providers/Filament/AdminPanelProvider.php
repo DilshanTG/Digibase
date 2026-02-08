@@ -51,7 +51,8 @@ class AdminPanelProvider extends PanelProvider
             )
             ->plugin(
                 FilamentSpatieLaravelBackupPlugin::make()
-                    ->usingPage(\ShuvroRoy\FilamentSpatieLaravelBackup\Pages\Backups::class)
+                    ->usingPolingInterval('10s')
+                    ->noTimeout()
             )
             ->navigationItems([
                 NavigationItem::make('API Docs')
