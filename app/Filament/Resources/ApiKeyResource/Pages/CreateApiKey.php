@@ -19,6 +19,10 @@ class CreateApiKey extends CreateRecord
 
         $token = $user->createToken($data['name'], $abilities);
 
+        // Save the plain text token to the database for revealable UI
+        $token->accessToken->plain_text_token = $token->plainTextToken;
+        $token->accessToken->save();
+
         // Flash the plain-text token — user sees it ONCE
         Notification::make()
             ->success()

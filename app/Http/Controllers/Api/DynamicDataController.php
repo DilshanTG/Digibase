@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use App\Models\DynamicRecord;
 
 class DynamicDataController extends Controller
 {
@@ -121,7 +123,53 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        $query = DB::table($tableName);
+        // Initialize Eloquent Query on DynamicRecord
+        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
+
+        // Handle Relationships
+        if ($request->has('include')) {
+            $includes = explode(',', $request->get('include'));
+            foreach ($includes as $include) {
+                $relationName = trim($include);
+                $relDef = $model->relationships()->where('name', $relationName)->first();
+
+                if ($relDef && $relDef->relatedModel) {
+                     DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
+                        $relatedTable = $relDef->relatedModel->table_name;
+
+                        $foreignKey = $relDef->foreign_key;
+                        $localKey = $relDef->local_key ?? 'id';
+                        
+                        if ($relDef->type === 'hasMany') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            
+                            $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+
+                        } elseif ($relDef->type === 'hasOne') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            
+                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+
+                        } elseif ($relDef->type === 'belongsTo') {
+                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
+                            // For belongsTo, localKey is the owner key (id on related table)
+                            
+                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+                        }
+                     });
+                     $query->with($relationName);
+                }
+            }
+        }
 
         // Search (Optimized: only search in 'is_searchable' fields)
         if ($request->has('search') && $request->search) {
@@ -131,7 +179,7 @@ class DynamicDataController extends Controller
             if (!empty($searchableFields)) {
                 $query->where(function ($q) use ($searchableFields, $searchTerm) {
                     foreach ($searchableFields as $field) {
-                        $q->orWhere($field, 'LIKE', $searchTerm . '%'); // Prefix search is faster than infix if indexed
+                        $q->orWhere($field, 'LIKE', $searchTerm . '%');
                     }
                 });
             }
@@ -190,7 +238,52 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        $record = DB::table($tableName)->where('id', $id)->first();
+        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
+
+        if ($request->has('include')) {
+            $includes = explode(',', $request->get('include'));
+            foreach ($includes as $include) {
+                $relationName = trim($include);
+                $relDef = $model->relationships()->where('name', $relationName)->first();
+
+                if ($relDef && $relDef->relatedModel) {
+                     DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
+                        $relatedTable = $relDef->relatedModel->table_name;
+                        
+                        $foreignKey = $relDef->foreign_key;
+                        $localKey = $relDef->local_key ?? 'id';
+
+                        if ($relDef->type === 'hasMany') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            
+                            $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+
+                        } elseif ($relDef->type === 'hasOne') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            
+                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+
+                        } elseif ($relDef->type === 'belongsTo') {
+                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
+                            
+                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+                        }
+                     });
+                     $query->with($relationName);
+                }
+            }
+        }
+
+        $record = $query->find($id);
 
         if (!$record) {
             return response()->json(['message' => 'Record not found'], 404);

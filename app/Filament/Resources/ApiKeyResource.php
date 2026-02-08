@@ -30,9 +30,9 @@ class ApiKeyResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Admin';
 
-    public static function form(Schema $form): Schema
+    public static function form(Schema $schema): Schema
     {
-        return $form
+        return $schema
             ->schema([
                 Section::make('Token Details')
                     ->schema([
@@ -73,6 +73,14 @@ class ApiKeyResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
+
+                Tables\Columns\TextColumn::make('plain_text_token')
+                    ->label('Key')
+                    ->formatStateUsing(fn ($state) => str_repeat('•', 8) . substr($state, -4))
+                    ->copyable()
+                    ->copyableState(fn ($record) => $record->plain_text_token)
+                    ->copyMessage('API Key copied to clipboard')
+                    ->description('Click to copy full key'),
 
                 Tables\Columns\TextColumn::make('tokenable.name')
                     ->label('User')

@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
@@ -30,17 +31,22 @@ class ManageSettings extends Page implements HasForms
 
     protected string $view = 'filament.pages.manage-settings';
 
-    public ?string $app_name = '';
-    public ?string $app_description = '';
-    public ?string $logo_url = '';
-    public ?string $primary_color = '';
-    public ?string $support_email = '';
+    public $app_name = '';
+    public $app_description = '';
+    public $logo_url = [];
+    public $primary_color = '';
+    public $support_email = '';
 
     public function mount(): void
     {
         $this->app_name = $this->getSetting('app_name', config('app.name', 'Digibase'));
         $this->app_description = $this->getSetting('app_description', 'Self-hosted BaaS Platform');
-        $this->logo_url = $this->getSetting('logo_url', '');
+        $this->logo_url = $this->getSetting('logo_url', []);
+        if (is_string($this->logo_url) && !empty($this->logo_url)) {
+            $this->logo_url = [$this->logo_url];
+        } elseif (empty($this->logo_url)) {
+            $this->logo_url = [];
+        }
         $this->primary_color = $this->getSetting('primary_color', '#f59e0b');
         $this->support_email = $this->getSetting('support_email', '');
     }
@@ -63,12 +69,13 @@ class ManageSettings extends Page implements HasForms
                             ->maxLength(255)
                             ->helperText('Shown on the landing page.'),
 
-                        TextInput::make('logo_url')
-                            ->label('Logo URL')
-                            ->url()
-                            ->maxLength(500)
-                            ->placeholder('https://example.com/logo.svg')
-                            ->helperText('URL to your logo image. Leave blank for text-only.'),
+                        FileUpload::make('logo_url')
+                            ->label('Logo')
+                            ->image()
+                            ->directory('branding')
+                            ->visibility('public')
+                            ->preserveFilenames()
+                            ->helperText('Upload your logo image.'),
 
                         ColorPicker::make('primary_color')
                             ->label('Primary Color')
@@ -88,12 +95,20 @@ class ManageSettings extends Page implements HasForms
 
     public function save(): void
     {
+        $data = $this->form->getState();
+
+        // Handle logo_url: Filament returns an array for FileUpload state
+        $logo = $data['logo_url'];
+        if (is_array($logo)) {
+            $logo = array_values($logo)[0] ?? '';
+        }
+
         $settings = [
-            'app_name' => $this->app_name,
-            'app_description' => $this->app_description,
-            'logo_url' => $this->logo_url,
-            'primary_color' => $this->primary_color,
-            'support_email' => $this->support_email,
+            'app_name' => $data['app_name'],
+            'app_description' => $data['app_description'],
+            'logo_url' => $logo,
+            'primary_color' => $data['primary_color'],
+            'support_email' => $data['support_email'],
         ];
 
         foreach ($settings as $key => $value) {
@@ -115,7 +130,7 @@ class ManageSettings extends Page implements HasForms
             ->send();
     }
 
-    private function getSetting(string $key, string $default = ''): string
+    private function getSetting(string $key, mixed $default = ''): mixed
     {
         $setting = Setting::where('key', $key)->first();
 
@@ -130,6 +145,6 @@ class ManageSettings extends Page implements HasForms
             return $value;
         }
 
-        return (string) $value;
+        return $value;
     }
 }
