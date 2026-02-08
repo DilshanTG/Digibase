@@ -258,16 +258,42 @@ class StorageController extends Controller
 
     /**
      * Download a file.
+     * 
+     * Access Rules:
+     * - Public files: Anyone can download
+     * - Private files: Only the owner (authenticated via Sanctum)
      */
     public function download(Request $request, StorageFile $file): StreamedResponse|JsonResponse
     {
-        // Allow download if public or owned by user
-        if (!$file->is_public && $file->user_id !== $request->user()?->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // Public files are accessible to everyone
+        if ($file->is_public) {
+            if (!Storage::disk($file->disk)->exists($file->path)) {
+                return response()->json(['message' => 'File not found on disk'], 404);
+            }
+            return Storage::disk($file->disk)->download($file->path, $file->original_name);
         }
 
+        // Private files require authentication
+        $authUser = auth('sanctum')->user();
+        
+        if (!$authUser) {
+            return response()->json([
+                'message' => 'Authentication required',
+                'error' => 'This file is private. Please provide a valid API token.',
+            ], 401);
+        }
+
+        // Only owner can access private files
+        if ($file->user_id !== $authUser->id) {
+            return response()->json([
+                'message' => 'Access denied',
+                'error' => 'You do not have permission to access this file.',
+            ], 403);
+        }
+
+        // Check file exists on disk
         if (!Storage::disk($file->disk)->exists($file->path)) {
-            return response()->json(['message' => 'File not found'], 404);
+            return response()->json(['message' => 'File not found on disk'], 404);
         }
 
         return Storage::disk($file->disk)->download($file->path, $file->original_name);

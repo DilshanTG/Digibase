@@ -6,6 +6,7 @@ use App\Models\Setting;
 use Filament\Facades\Filament;
 use Filament\Support\Colors\Color;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -41,9 +42,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Override Laravel app name
         if (! empty($settings['app_name'])) {
-            $name = is_string($settings['app_name']) ? $settings['app_name'] : json_encode($settings['app_name']);
-            $name = trim($name, '"');
-            config(['app.name' => $name]);
+            config(['app.name' => $settings['app_name']]);
         }
 
         // Override Filament panel branding dynamically
@@ -60,10 +59,10 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if (! empty($settings['logo_url'])) {
-                $logo = is_string($settings['logo_url']) ? $settings['logo_url'] : (string) $settings['logo_url'];
-                $logo = trim($logo, '"');
+                $logo = $settings['logo_url'];
                 if ($logo) {
-                    $panel->brandLogo($logo)->brandLogoHeight('2rem');
+                    $logoUrl = str_starts_with($logo, 'http') ? $logo : Storage::url($logo);
+                    $panel->brandLogo($logoUrl)->brandLogoHeight('2rem');
                 }
             }
 

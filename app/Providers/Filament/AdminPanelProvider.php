@@ -39,6 +39,12 @@ class AdminPanelProvider extends PanelProvider
             ->font('Inter')
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth('full')
+            ->navigationGroups([
+                'Database',
+                'Storage',
+                'Integrations',
+                'Settings',
+            ])
             ->plugin(
                 FileManagerPlugin::make()
                     ->withoutSchemaExample()
@@ -48,10 +54,10 @@ class AdminPanelProvider extends PanelProvider
                     ->usingPage(\ShuvroRoy\FilamentSpatieLaravelBackup\Pages\Backups::class)
             )
             ->navigationItems([
-                NavigationItem::make('API Documentation')
+                NavigationItem::make('API Docs')
                     ->url('/docs/api')
                     ->icon('heroicon-o-book-open')
-                    ->group('Resources')
+                    ->group('Integrations')
                     ->sort(99)
                     ->openUrlInNewTab(),
             ])
@@ -63,7 +69,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

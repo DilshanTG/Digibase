@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Events\ModelActivity;
 use App\Models\DynamicModel;
+use App\Models\Webhook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -24,6 +27,197 @@ class DynamicDataController extends Controller
             ->where('is_active', true)
             ->with('fields')
             ->first();
+    }
+
+    /**
+     * Validate an RLS rule expression safely (NO eval()!)
+     * 
+     * Supported expressions:
+     * - null/empty = Deny (Admin Only)
+     * - 'true' = Allow everyone
+     * - 'false' = Deny everyone
+     * - 'auth.id != null' = Authenticated users only
+     * - 'auth.id == user_id' = Owner only (record's user_id matches auth user)
+     * - 'auth.id == {field_name}' = Dynamic field ownership check
+     * 
+     * @param string|null $rule The rule expression
+     * @param object|null $record The record being accessed (for ownership checks)
+     * @return bool Whether access is allowed
+     */
+    protected function validateRule(?string $rule, ?object $record = null): bool
+    {
+        // Empty/null rule = Admin only (deny API access)
+        if (empty($rule)) {
+            return false;
+        }
+
+        $rule = trim(strtolower($rule));
+
+        // Literal true/false
+        if ($rule === 'true') {
+            return true;
+        }
+        if ($rule === 'false') {
+            return false;
+        }
+
+        // Get authenticated user ID (via Sanctum)
+        $authId = auth('sanctum')->id();
+
+        // Parse the expression safely
+        // Replace auth.id with actual value or 'null' string
+        $authIdStr = $authId !== null ? (string) $authId : 'null';
+
+        // Handle "auth.id != null" (Authenticated users)
+        if ($rule === 'auth.id != null' || $rule === 'auth.id !== null') {
+            return $authId !== null;
+        }
+
+        // Handle "auth.id == null" (Unauthenticated users only)
+        if ($rule === 'auth.id == null' || $rule === 'auth.id === null') {
+            return $authId === null;
+        }
+
+        // Handle ownership checks like "auth.id == user_id"
+        if (preg_match('/^auth\.id\s*(==|===|!=|!==)\s*(\w+)$/', $rule, $matches)) {
+            $operator = $matches[1];
+            $fieldName = $matches[2];
+
+            // Skip if the field is 'null' (handled above)
+            if ($fieldName === 'null') {
+                return false;
+            }
+
+            // We need a record to check ownership
+            if (!$record) {
+                // For list/create operations without a specific record,
+                // we can't check ownership, so check if user is authenticated
+                return $authId !== null;
+            }
+
+            // Get the field value from the record
+            $fieldValue = null;
+            if (is_object($record)) {
+                $fieldValue = $record->{$fieldName} ?? null;
+            } elseif (is_array($record)) {
+                $fieldValue = $record[$fieldName] ?? null;
+            }
+
+            // Perform the comparison
+            switch ($operator) {
+                case '==':
+                case '===':
+                    return $authId !== null && (string) $authId === (string) $fieldValue;
+                case '!=':
+                case '!==':
+                    return $authId !== null && (string) $authId !== (string) $fieldValue;
+            }
+        }
+
+        // Handle compound expressions with && or ||
+        if (str_contains($rule, '&&')) {
+            $parts = array_map('trim', explode('&&', $rule));
+            foreach ($parts as $part) {
+                if (!$this->validateRule($part, $record)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (str_contains($rule, '||')) {
+            $parts = array_map('trim', explode('||', $rule));
+            foreach ($parts as $part) {
+                if ($this->validateRule($part, $record)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Unknown expression = deny for safety
+        return false;
+    }
+
+    /**
+     * Trigger webhooks for a dynamic model event.
+     * 
+     * @param int $modelId The dynamic_model_id
+     * @param string $event One of: 'created', 'updated', 'deleted'
+     * @param array $data The payload to send
+     */
+    protected function triggerWebhooks(int $modelId, string $event, array $data): void
+    {
+        // Find all active webhooks for this model
+        $webhooks = Webhook::where('dynamic_model_id', $modelId)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($webhooks as $webhook) {
+            // Check if this webhook should trigger for this event
+            if (!$webhook->shouldTrigger($event)) {
+                continue;
+            }
+
+            // Build the payload
+            $payload = [
+                'event' => $event,
+                'table' => $data['table'] ?? null,
+                'data' => $data['record'] ?? $data,
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // Build headers
+            $headers = [
+                'Content-Type' => 'application/json',
+                'User-Agent' => 'Digibase-Webhook/1.0',
+                'X-Webhook-Event' => $event,
+            ];
+
+            // Add HMAC signature if secret is set
+            $signature = $webhook->generateSignature($payload);
+            if ($signature) {
+                $headers['X-Webhook-Signature'] = 'sha256=' . $signature;
+            }
+
+            // Add custom headers
+            if (!empty($webhook->headers)) {
+                $headers = array_merge($headers, $webhook->headers);
+            }
+
+            // Send webhook asynchronously (fire and forget)
+            try {
+                Http::timeout(10)
+                    ->withHeaders($headers)
+                    ->async()
+                    ->post($webhook->url, $payload)
+                    ->then(
+                        function ($response) use ($webhook) {
+                            if ($response->successful()) {
+                                $webhook->recordSuccess();
+                            } else {
+                                $webhook->recordFailure();
+                                Log::warning("Webhook failed: {$webhook->url}", [
+                                    'status' => $response->status(),
+                                    'body' => $response->body(),
+                                ]);
+                            }
+                        },
+                        function ($exception) use ($webhook) {
+                            $webhook->recordFailure();
+                            Log::error("Webhook error: {$webhook->url}", [
+                                'error' => $exception->getMessage(),
+                            ]);
+                        }
+                    );
+            } catch (\Exception $e) {
+                // Log but don't fail the main request
+                Log::error("Webhook dispatch error: {$webhook->url}", [
+                    'error' => $e->getMessage(),
+                ]);
+                $webhook->recordFailure();
+            }
+        }
     }
 
     /**
@@ -114,9 +308,9 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        // Check authorization
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // RLS: Check list_rule
+        if (!$this->validateRule($model->list_rule)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
         if (!Schema::hasTable($tableName)) {
@@ -230,10 +424,6 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
@@ -289,6 +479,11 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Record not found'], 404);
         }
 
+        // RLS: Check view_rule with record context
+        if (!$this->validateRule($model->view_rule, $record)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
+        }
+
         return response()->json(['data' => $record]);
     }
 
@@ -303,8 +498,9 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // RLS: Check create_rule
+        if (!$this->validateRule($model->create_rule)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
         if (!Schema::hasTable($tableName)) {
@@ -356,6 +552,12 @@ class DynamicDataController extends Controller
         // Broadcast Activity
         event(new ModelActivity('created', $model->name, $record, $request->user()));
 
+        // Trigger webhooks
+        $this->triggerWebhooks($model->id, 'created', [
+            'table' => $tableName,
+            'record' => (array) $record,
+        ]);
+
         return response()->json(['data' => $record], 201);
     }
 
@@ -370,10 +572,6 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
@@ -382,6 +580,11 @@ class DynamicDataController extends Controller
 
         if (!$record) {
             return response()->json(['message' => 'Record not found'], 404);
+        }
+
+        // RLS: Check update_rule with record context
+        if (!$this->validateRule($model->update_rule, $record)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
         // Validate input (update mode)
@@ -437,6 +640,12 @@ class DynamicDataController extends Controller
         // Broadcast Activity
         event(new ModelActivity('updated', $model->name, $record, $request->user()));
 
+        // Trigger webhooks
+        $this->triggerWebhooks($model->id, 'updated', [
+            'table' => $tableName,
+            'record' => (array) $record,
+        ]);
+
         return response()->json(['data' => $record]);
     }
 
@@ -451,10 +660,6 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
@@ -464,6 +669,14 @@ class DynamicDataController extends Controller
         if (!$record) {
             return response()->json(['message' => 'Record not found'], 404);
         }
+
+        // RLS: Check delete_rule with record context
+        if (!$this->validateRule($model->delete_rule, $record)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
+        }
+
+        // Capture record data before deletion for webhook
+        $recordData = (array) $record;
 
         // Handle soft deletes
         if ($model->has_soft_deletes) {
@@ -476,6 +689,12 @@ class DynamicDataController extends Controller
 
         // Broadcast Activity
         event(new ModelActivity('deleted', $model->name, ['id' => $id], $request->user()));
+
+        // Trigger webhooks
+        $this->triggerWebhooks($model->id, 'deleted', [
+            'table' => $tableName,
+            'record' => $recordData,
+        ]);
 
         return response()->json(['message' => 'Record deleted successfully']);
     }
@@ -491,8 +710,9 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if ($model->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // RLS: Schema access follows list_rule (if you can list, you can see schema)
+        if (!$this->validateRule($model->list_rule)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
         return response()->json([

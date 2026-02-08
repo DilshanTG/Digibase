@@ -118,4 +118,121 @@ class AuthController extends Controller
             'email' => [__($status)],
         ]);
     }
+
+    /**
+     * Redirect to OAuth provider.
+     */
+    public function redirectToProvider(string $provider)
+    {
+        // Validate provider name
+        $validProviders = ['google', 'github'];
+        if (!in_array($provider, $validProviders)) {
+            return response()->json([
+                'message' => 'Invalid provider',
+                'valid_providers' => $validProviders,
+            ], 400);
+        }
+
+        // Check if provider is enabled in settings
+        $isActive = \App\Models\Setting::where('key', "{$provider}_active")
+            ->where('group', 'authentication')
+            ->value('value');
+
+        if (!$isActive || $isActive === '0') {
+            return response()->json([
+                'message' => ucfirst($provider) . ' login is not enabled',
+                'error' => 'provider_disabled',
+            ], 403);
+        }
+
+        // Redirect to provider
+        return \Laravel\Socialite\Facades\Socialite::driver($provider)->redirect();
+    }
+
+    /**
+     * Handle OAuth provider callback.
+     */
+    public function handleProviderCallback(string $provider)
+    {
+        // Validate provider
+        $validProviders = ['google', 'github'];
+        if (!in_array($provider, $validProviders)) {
+            return response()->json(['message' => 'Invalid provider'], 400);
+        }
+
+        // Check if provider is enabled
+        $isActive = \App\Models\Setting::where('key', "{$provider}_active")
+            ->where('group', 'authentication')
+            ->value('value');
+
+        if (!$isActive || $isActive === '0') {
+            return response()->json([
+                'message' => ucfirst($provider) . ' login is not enabled',
+            ], 403);
+        }
+
+        try {
+            $socialUser = \Laravel\Socialite\Facades\Socialite::driver($provider)->user();
+
+            // Find or create user
+            $user = User::where('email', $socialUser->getEmail())->first();
+
+            if (!$user) {
+                $user = User::create([
+                    'name' => $socialUser->getName() ?? $socialUser->getNickname() ?? 'User',
+                    'email' => $socialUser->getEmail(),
+                    'password' => Hash::make(\Illuminate\Support\Str::random(24)),
+                    'email_verified_at' => now(),
+                ]);
+            }
+
+            // Update provider info
+            $user->update([
+                "{$provider}_id" => $socialUser->getId(),
+            ]);
+
+            // Create token
+            $token = $user->createToken('social_auth_token')->plainTextToken;
+
+            // Return JSON or redirect based on Accept header
+            if (request()->wantsJson()) {
+                return response()->json([
+                    'user' => $user,
+                    'token' => $token,
+                ]);
+            }
+
+            // Redirect to frontend with token (adjust URL as needed)
+            return redirect()->to(
+                config('app.frontend_url', '/') . '?token=' . $token
+            );
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Authentication failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get available OAuth providers.
+     */
+    public function getProviders()
+    {
+        $google = \App\Models\Setting::where('key', 'google_active')
+            ->where('group', 'authentication')
+            ->value('value');
+
+        $github = \App\Models\Setting::where('key', 'github_active')
+            ->where('group', 'authentication')
+            ->value('value');
+
+        return response()->json([
+            'providers' => [
+                'google' => (bool) $google && $google !== '0',
+                'github' => (bool) $github && $github !== '0',
+            ],
+        ]);
+    }
 }

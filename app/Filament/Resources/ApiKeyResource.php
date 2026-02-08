@@ -28,7 +28,9 @@ class ApiKeyResource extends Resource
 
     protected static ?string $modelLabel = 'API Key';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Admin';
+    protected static string|UnitEnum|null $navigationGroup = 'Settings';
+
+    protected static ?int $navigationSort = 2;
 
     public static function form(Schema $schema): Schema
     {

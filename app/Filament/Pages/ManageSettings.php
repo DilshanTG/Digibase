@@ -3,148 +3,245 @@
 namespace App\Filament\Pages;
 
 use App\Models\Setting;
-use Filament\Forms\Components\ColorPicker;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Support\Exceptions\Halt;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Notifications\Notification;
-use BackedEnum;
-use Filament\Pages\Page;
-use Filament\Schemas\Schema;
 use UnitEnum;
+use BackedEnum;
 
 class ManageSettings extends Page implements HasForms
 {
     use InteractsWithForms;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
-
-    protected static ?string $navigationLabel = 'Settings';
-
+    protected static string|UnitEnum|null $navigationGroup = 'Settings';
+    protected static ?int $navigationSort = 3;
     protected static ?string $title = 'Platform Settings';
-
-    protected static ?int $navigationSort = 10;
-
-    protected static string|UnitEnum|null $navigationGroup = 'Admin';
 
     protected string $view = 'filament.pages.manage-settings';
 
-    public $app_name = '';
-    public $app_description = '';
+    // General Settings
+    public $app_name; 
+    public $app_description;
     public $logo_url = [];
-    public $primary_color = '';
-    public $support_email = '';
+    public $primary_color;
+    public $support_email;
+
+    // Social Auth - Google
+    public $google_active = false;
+    public $google_client_id;
+    public $google_client_secret;
+    public $google_redirect_uri;
+
+    // Social Auth - GitHub
+    public $github_active = false;
+    public $github_client_id;
+    public $github_client_secret;
+    public $github_redirect_uri;
 
     public function mount(): void
     {
-        $this->app_name = $this->getSetting('app_name', config('app.name', 'Digibase'));
-        $this->app_description = $this->getSetting('app_description', 'Self-hosted BaaS Platform');
-        $this->logo_url = $this->getSetting('logo_url', []);
-        if (is_string($this->logo_url) && !empty($this->logo_url)) {
-            $this->logo_url = [$this->logo_url];
-        } elseif (empty($this->logo_url)) {
-            $this->logo_url = [];
-        }
-        $this->primary_color = $this->getSetting('primary_color', '#f59e0b');
-        $this->support_email = $this->getSetting('support_email', '');
+        // Load General settings
+        $this->app_name = $this->getSetting('app_name', 'branding');
+        $this->app_description = $this->getSetting('app_description', 'branding');
+        
+        $logo = $this->getSetting('logo_url', 'branding');
+        $this->logo_url = $logo ? [$logo] : []; 
+
+        $this->primary_color = $this->getSetting('primary_color', 'branding');
+        $this->support_email = $this->getSetting('support_email', 'branding');
+
+        // Load Auth settings
+        $this->google_active = (bool) $this->getSetting('google_active', 'authentication');
+        $this->google_client_id = $this->getSetting('google_client_id', 'authentication');
+        $this->google_client_secret = $this->getSetting('google_client_secret', 'authentication');
+        $this->google_redirect_uri = $this->getSetting('google_redirect_uri', 'authentication');
+
+        $this->github_active = (bool) $this->getSetting('github_active', 'authentication');
+        $this->github_client_id = $this->getSetting('github_client_id', 'authentication');
+        $this->github_client_secret = $this->getSetting('github_client_secret', 'authentication');
+        $this->github_redirect_uri = $this->getSetting('github_redirect_uri', 'authentication');
     }
 
     public function form(Schema $form): Schema
     {
         return $form
             ->schema([
-                Section::make('Branding')
-                    ->description('Customize how your platform looks and feels.')
-                    ->schema([
-                        TextInput::make('app_name')
-                            ->label('Application Name')
-                            ->required()
-                            ->maxLength(100)
-                            ->helperText('Shown in the browser tab, login page, and sidebar.'),
+                Tabs::make('Settings')
+                    ->tabs([
+                        // TAB 1: General
+                        Tabs\Tab::make('General')
+                            ->icon('heroicon-o-cog-6-tooth')
+                            ->schema([
+                                Section::make('Branding')
+                                    ->schema([
+                                        TextInput::make('app_name')
+                                            ->label('Application Name')
+                                            ->required(),
+                                        
+                                        TextInput::make('app_description')
+                                            ->label('Description'),
 
-                        TextInput::make('app_description')
-                            ->label('Tagline / Description')
-                            ->maxLength(255)
-                            ->helperText('Shown on the landing page.'),
+                                        FileUpload::make('logo_url')
+                                            ->label('Logo')
+                                            ->image()
+                                            ->disk('public')
+                                            ->directory('branding')
+                                            ->visibility('public')
+                                            ->maxSize(2048)
+                                            ->preserveFilenames(),
 
-                        FileUpload::make('logo_url')
-                            ->label('Logo')
-                            ->image()
-                            ->directory('branding')
-                            ->visibility('public')
-                            ->preserveFilenames()
-                            ->helperText('Upload your logo image.'),
+                                        TextInput::make('primary_color')
+                                            ->label('Primary Color')
+                                            ->prefix('#')
+                                            ->placeholder('6366f1'),
 
-                        ColorPicker::make('primary_color')
-                            ->label('Primary Color')
-                            ->helperText('Used for buttons, links, and accents.'),
-                    ])->columns(2),
+                                        TextInput::make('support_email')
+                                            ->email()
+                                            ->label('Support Email'),
+                                    ])->columns(2),
+                            ]),
 
-                Section::make('Contact')
-                    ->schema([
-                        TextInput::make('support_email')
-                            ->label('Support Email')
-                            ->email()
-                            ->maxLength(255)
-                            ->placeholder('support@example.com'),
-                    ])->columns(2),
+                        // TAB 2: Authentication
+                        Tabs\Tab::make('Authentication')
+                            ->icon('heroicon-o-key')
+                            ->schema([
+                                // Google OAuth
+                                Section::make('Google OAuth')
+                                    ->description('Allow users to sign in with Google')
+                                    ->schema([
+                                        Toggle::make('google_active')
+                                            ->label('Enable Google Login')
+                                            ->live()
+                                            ->columnSpanFull(),
+
+                                        TextInput::make('google_client_id')
+                                            ->label('Client ID')
+                                            ->placeholder('xxxx.apps.googleusercontent.com')
+                                            ->visible(fn ($get) => $get('google_active')),
+
+                                        TextInput::make('google_client_secret')
+                                            ->label('Client Secret')
+                                            ->password()
+                                            ->revealable()
+                                            ->visible(fn ($get) => $get('google_active')),
+
+                                        TextInput::make('google_redirect_uri')
+                                            ->label('Callback URL')
+                                            ->placeholder(url('/api/auth/google/callback'))
+                                            ->helperText('Default: ' . url('/api/auth/google/callback'))
+                                            ->visible(fn ($get) => $get('google_active')),
+                                    ])->columns(2),
+
+                                // GitHub OAuth
+                                Section::make('GitHub OAuth')
+                                    ->description('Allow users to sign in with GitHub')
+                                    ->schema([
+                                        Toggle::make('github_active')
+                                            ->label('Enable GitHub Login')
+                                            ->live()
+                                            ->columnSpanFull(),
+
+                                        TextInput::make('github_client_id')
+                                            ->label('Client ID')
+                                            ->visible(fn ($get) => $get('github_active')),
+
+                                        TextInput::make('github_client_secret')
+                                            ->label('Client Secret')
+                                            ->password()
+                                            ->revealable()
+                                            ->visible(fn ($get) => $get('github_active')),
+
+                                        TextInput::make('github_redirect_uri')
+                                            ->label('Callback URL')
+                                            ->placeholder(url('/api/auth/github/callback'))
+                                            ->helperText('Default: ' . url('/api/auth/github/callback'))
+                                            ->visible(fn ($get) => $get('github_active')),
+                                    ])->columns(2),
+                            ]),
+                    ])->columnSpanFull(),
             ]);
     }
 
     public function save(): void
     {
-        $data = $this->form->getState();
+        try {
+            $data = $this->form->getState();
 
-        // Handle logo_url: Filament returns an array for FileUpload state
-        $logo = $data['logo_url'];
-        if (is_array($logo)) {
-            $logo = array_values($logo)[0] ?? '';
+            // Extract logo path
+            $logoPath = null;
+            if (!empty($data['logo_url']) && is_array($data['logo_url'])) {
+                $logoPath = array_values($data['logo_url'])[0];
+            } elseif (!empty($data['logo_url']) && is_string($data['logo_url'])) {
+                $logoPath = $data['logo_url'];
+            }
+
+            // Save Branding settings
+            $brandingSettings = [
+                'app_name' => $data['app_name'],
+                'app_description' => $data['app_description'],
+                'logo_url' => $logoPath,
+                'primary_color' => $data['primary_color'],
+                'support_email' => $data['support_email'],
+            ];
+
+            foreach ($brandingSettings as $key => $value) {
+                Setting::updateOrCreate(
+                    ['key' => $key],
+                    [
+                        'value' => $value, 
+                        'group' => 'branding',
+                        'type' => 'string',
+                        'is_public' => true,
+                    ]
+                );
+            }
+
+            // Save Authentication settings
+            $authSettings = [
+                'google_active' => $data['google_active'] ? '1' : '0',
+                'google_client_id' => $data['google_client_id'],
+                'google_client_secret' => $data['google_client_secret'],
+                'google_redirect_uri' => $data['google_redirect_uri'],
+                'github_active' => $data['github_active'] ? '1' : '0',
+                'github_client_id' => $data['github_client_id'],
+                'github_client_secret' => $data['github_client_secret'],
+                'github_redirect_uri' => $data['github_redirect_uri'],
+            ];
+
+            foreach ($authSettings as $key => $value) {
+                Setting::updateOrCreate(
+                    ['key' => $key],
+                    [
+                        'value' => $value, 
+                        'group' => 'authentication',
+                        'type' => str_contains($key, '_active') ? 'boolean' : 'string',
+                        'is_public' => false, // Keep secrets private
+                    ]
+                );
+            }
+
+            Notification::make() 
+                ->title('Settings saved successfully')
+                ->success()
+                ->send();
+
+        } catch (Halt $exception) {
+            return;
         }
-
-        $settings = [
-            'app_name' => $data['app_name'],
-            'app_description' => $data['app_description'],
-            'logo_url' => $logo,
-            'primary_color' => $data['primary_color'],
-            'support_email' => $data['support_email'],
-        ];
-
-        foreach ($settings as $key => $value) {
-            Setting::updateOrCreate(
-                ['key' => $key],
-                [
-                    'value' => json_encode($value),
-                    'type' => 'string',
-                    'group' => 'branding',
-                    'is_public' => true,
-                ]
-            );
-        }
-
-        Notification::make()
-            ->success()
-            ->title('Settings saved')
-            ->body('Your branding changes are live.')
-            ->send();
     }
 
-    private function getSetting(string $key, mixed $default = ''): mixed
+    protected function getSetting($key, $group = 'branding')
     {
-        $setting = Setting::where('key', $key)->first();
-
-        if (! $setting) {
-            return $default;
-        }
-
-        $value = $setting->value;
-
-        // value is cast to json by the model, so it may already be decoded
-        if (is_string($value)) {
-            return $value;
-        }
-
-        return $value;
+        $setting = Setting::where('key', $key)->where('group', $group)->first();
+        return $setting ? $setting->value : null;
     }
 }

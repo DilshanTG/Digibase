@@ -29,6 +29,7 @@ class DataExplorer extends Page implements HasTable
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-table-cells';
     protected static string|UnitEnum|null $navigationGroup = 'Database';
+    protected static ?int $navigationSort = 2;
     protected static ?string $title = 'Data Explorer';
     protected static bool $shouldRegisterNavigation = true;
 

@@ -5,12 +5,13 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\DynamicModelResource\Pages;
 use App\Models\DynamicModel;
 use Filament\Forms;
-use Filament\Forms\Components\Tabs;
+use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\CodeEditor\Enums\Language;
 use Filament\Actions\DeleteAction;
@@ -23,6 +24,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Database\Schema\Blueprint;
 use BackedEnum;
+use UnitEnum;
 use Illuminate\Support\Str;
 
 class DynamicModelResource extends Resource
@@ -32,14 +34,16 @@ class DynamicModelResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-circle-stack';
     protected static ?string $navigationLabel = 'Table Builder';
     protected static ?string $modelLabel = 'Database Table';
+    protected static string|UnitEnum|null $navigationGroup = 'Database';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
-                Forms\Components\Tabs::make('Table Configuration')
+                Tabs::make('Table Configuration')
                     ->tabs([
-                        Forms\Components\Tabs\Tab::make('Definition')
+                        Tabs\Tab::make('Definition')
                             ->icon('heroicon-o-table-cells')
                             ->schema([
                                 Forms\Components\TextInput::make('name')
@@ -66,7 +70,7 @@ class DynamicModelResource extends Resource
                                 Forms\Components\Hidden::make('table_name'),
                             ])->columns(2),
 
-                        Forms\Components\Tabs\Tab::make('Configuration')
+                        Tabs\Tab::make('Configuration')
                             ->icon('heroicon-o-cog')
                             ->schema([
                                 Forms\Components\Toggle::make('is_active')
@@ -83,7 +87,7 @@ class DynamicModelResource extends Resource
                                     ->default(false),
                             ])->columns(2),
 
-                        Forms\Components\Tabs\Tab::make('Columns')
+                        Tabs\Tab::make('Columns')
                             ->icon('heroicon-o-list-bullet')
                             ->schema([
                                 Forms\Components\Repeater::make('fields')
@@ -127,7 +131,7 @@ class DynamicModelResource extends Resource
                                     ->defaultItems(1)
                             ]),
 
-                        Forms\Components\Tabs\Tab::make('Relationships')
+                        Tabs\Tab::make('Relationships')
                             ->icon('heroicon-o-link')
                             ->schema([
                                 Forms\Components\Repeater::make('relationships')
@@ -164,13 +168,69 @@ class DynamicModelResource extends Resource
                                     ->defaultItems(0)
                             ]),
 
-                        Forms\Components\Tabs\Tab::make('Advanced')
+                        Tabs\Tab::make('Advanced')
                             ->icon('heroicon-o-code-bracket')
                             ->schema([
                                 Forms\Components\CodeEditor::make('settings')
                                     ->label('Settings (JSON)')
                                     ->helperText('Advanced config in JSON format.')
                                     ->language(Language::Json),
+                            ]),
+
+                        Tabs\Tab::make('Access Rules')
+                            ->icon('heroicon-o-shield-check')
+                            ->schema([
+                                Section::make('Row Level Security (RLS)')
+                                    ->description('Define who can access data in this table. Select a preset or choose "Custom" for advanced rules.')
+                                    ->schema([
+                                        Forms\Components\Select::make('list_rule')
+                                            ->label('📋 List (View All)')
+                                            ->options([
+                                                '' => '🔒 Admin Only (Default)',
+                                                'true' => '🌐 Public (Anyone)',
+                                                'auth.id != null' => '🔑 Authenticated Users',
+                                                'auth.id == user_id' => '👤 Owner Only',
+                                            ])
+                                            ->helperText('Who can view the collection of records'),
+
+                                        Forms\Components\Select::make('view_rule')
+                                            ->label('👁️ View (Single Record)')
+                                            ->options([
+                                                '' => '🔒 Admin Only (Default)',
+                                                'true' => '🌐 Public (Anyone)',
+                                                'auth.id != null' => '🔑 Authenticated Users',
+                                                'auth.id == user_id' => '👤 Owner Only',
+                                            ])
+                                            ->helperText('Who can view a single record'),
+
+                                        Forms\Components\Select::make('create_rule')
+                                            ->label('➕ Create')
+                                            ->options([
+                                                '' => '🔒 Admin Only (Default)',
+                                                'true' => '🌐 Public (Anyone)',
+                                                'auth.id != null' => '🔑 Authenticated Users',
+                                            ])
+                                            ->helperText('Who can create new records'),
+
+                                        Forms\Components\Select::make('update_rule')
+                                            ->label('✏️ Update')
+                                            ->options([
+                                                '' => '🔒 Admin Only (Default)',
+                                                'true' => '🌐 Public (Anyone)',
+                                                'auth.id != null' => '🔑 Authenticated Users',
+                                                'auth.id == user_id' => '👤 Owner Only',
+                                            ])
+                                            ->helperText('Who can update records'),
+
+                                        Forms\Components\Select::make('delete_rule')
+                                            ->label('🗑️ Delete')
+                                            ->options([
+                                                '' => '🔒 Admin Only (Default)',
+                                                'auth.id != null' => '🔑 Authenticated Users',
+                                                'auth.id == user_id' => '👤 Owner Only',
+                                            ])
+                                            ->helperText('Who can delete records'),
+                                    ])->columns(2),
                             ]),
                     ])->columnSpanFull()
             ]);

@@ -16,7 +16,7 @@ class Setting extends Model
     ];
 
     protected $casts = [
-        'value' => 'json',
+        'value' => 'string',
         'is_public' => 'boolean',
     ];
 }

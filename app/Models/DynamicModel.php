@@ -23,6 +23,12 @@ class DynamicModel extends Model
         'has_soft_deletes',
         'generate_api',
         'settings',
+        // RLS Rules
+        'list_rule',
+        'view_rule',
+        'create_rule',
+        'update_rule',
+        'delete_rule',
     ];
 
     protected function casts(): array
