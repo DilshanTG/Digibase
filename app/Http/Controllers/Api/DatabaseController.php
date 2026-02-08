@@ -31,6 +31,12 @@ class DatabaseController extends Controller
         'role_has_permissions',
         'model_has_roles',
         'model_has_permissions',
+        'dynamic_models',
+        'dynamic_fields',
+        'dynamic_relationships',
+        'webhooks',
+        'settings',
+        'storage_files',
     ];
 
     /**
@@ -330,7 +336,9 @@ class DatabaseController extends Controller
             return response()->json(['message' => 'Unauthorized or table not found'], 403);
         }
 
-        $data = $request->except(['_token']);
+        // Only allow fields that are defined in the dynamic model (prevent injection of system columns)
+        $allowedFields = $dynamicModel->fields()->pluck('name')->toArray();
+        $data = $request->only($allowedFields);
 
         if ($dynamicModel->has_timestamps) {
             $data['created_at'] = now();
@@ -360,7 +368,9 @@ class DatabaseController extends Controller
             return response()->json(['message' => 'Unauthorized or table not found'], 403);
         }
 
-        $data = $request->except(['_token', 'id']);
+        // Only allow fields that are defined in the dynamic model (prevent injection of system columns)
+        $allowedFields = $dynamicModel->fields()->pluck('name')->toArray();
+        $data = $request->only($allowedFields);
 
         if ($dynamicModel->has_timestamps) {
             $data['updated_at'] = now();

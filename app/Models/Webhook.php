@@ -77,7 +77,8 @@ class Webhook extends Model
     public function recordFailure(): void
     {
         $this->increment('failure_count');
-        
+        $this->refresh();
+
         // Auto-disable after 10 consecutive failures
         if ($this->failure_count >= 10) {
             $this->update(['is_active' => false]);

@@ -18,6 +18,9 @@ Route::get('/auth/providers', [AuthController::class, 'getProviders']);
 Route::get('/auth/{provider}', [AuthController::class, 'redirectToProvider']);
 Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderCallback']);
 
+// Public file downloads (auth checked inside controller for private files)
+Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
@@ -46,7 +49,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/storage', [StorageController::class, 'index']);
     Route::post('/storage', [StorageController::class, 'store']);
     Route::get('/storage/{file}', [StorageController::class, 'show']);
-    Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
     Route::put('/storage/{file}', [StorageController::class, 'update']);
     Route::delete('/storage/{file}', [StorageController::class, 'destroy']);
 

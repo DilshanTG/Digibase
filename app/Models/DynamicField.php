@@ -57,10 +57,12 @@ class DynamicField extends Model
     public function getDatabaseType(): string
     {
         return match ($this->type) {
-            'string', 'email', 'url', 'phone', 'slug' => 'string',
+            'string', 'email', 'url', 'phone', 'slug', 'password', 'color', 'encrypted' => 'string',
             'text', 'richtext', 'markdown' => 'text',
-            'integer', 'bigint' => 'bigInteger',
-            'float', 'decimal', 'money' => 'decimal',
+            'integer' => 'integer',
+            'bigint' => 'bigInteger',
+            'float' => 'float',
+            'decimal', 'money' => 'decimal',
             'boolean', 'checkbox' => 'boolean',
             'date' => 'date',
             'datetime', 'timestamp' => 'dateTime',
@@ -69,6 +71,7 @@ class DynamicField extends Model
             'uuid' => 'uuid',
             'enum', 'select' => 'string',
             'file', 'image' => 'string',
+            'point' => 'geometry',
             default => 'string',
         };
     }

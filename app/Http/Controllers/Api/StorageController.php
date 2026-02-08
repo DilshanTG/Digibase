@@ -426,8 +426,12 @@ class StorageController extends Controller
     /**
      * Convert bytes to human readable format.
      */
-    protected function humanFileSize(int $bytes): string
+    protected function humanFileSize(int|null $bytes): string
     {
+        if (!$bytes) {
+            return '0 B';
+        }
+
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
 
         for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {

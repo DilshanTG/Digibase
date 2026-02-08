@@ -60,12 +60,13 @@ class Digibase {
 
         if (!response.ok) {
             // Try to parse error as JSON
+            let errorBody;
             try {
-                const errorJson = await response.json();
-                throw { status: response.status, ...errorJson };
+                errorBody = await response.json();
             } catch (e) {
                 throw { status: response.status, message: response.statusText };
             }
+            throw { status: response.status, ...errorBody };
         }
 
         // Handle different response types
@@ -135,7 +136,8 @@ class Digibase {
                 const formData = new FormData();
                 formData.append('file', file);
                 if (options.bucket) formData.append('bucket', options.bucket);
-                if (options.path) formData.append('path', options.path);
+                if (options.folder) formData.append('folder', options.folder);
+                if (options.is_public) formData.append('is_public', '1');
 
                 const url = `\${this.baseUrl}/api/storage`;
                 const headers = { 'Accept': 'application/json' };
@@ -148,7 +150,11 @@ class Digibase {
                     headers,
                     body: formData
                 });
-                return await response.json();
+                const result = await response.json();
+                if (!response.ok) {
+                    throw { status: response.status, ...result };
+                }
+                return result;
             },
             delete: async (id) => {
                 return await this.request('DELETE', `/storage/\${id}`);

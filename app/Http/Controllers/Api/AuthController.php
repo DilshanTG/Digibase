@@ -202,9 +202,9 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Redirect to frontend with token (adjust URL as needed)
+            // Redirect to frontend with token in URL fragment (not sent to server in referrer headers)
             return redirect()->to(
-                config('app.frontend_url', '/') . '?token=' . $token
+                config('app.frontend_url', '/') . '#token=' . $token
             );
 
         } catch (\Exception $e) {
