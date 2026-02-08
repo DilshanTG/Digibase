@@ -76,11 +76,12 @@ class DataExplorer extends Page implements HasTable
 
         if ($dynamicModel->fields->isNotEmpty()) {
             foreach ($dynamicModel->fields as $field) {
-                // Use TextInputColumn for inline editing
-                $columns[] = TextInputColumn::make($field->name)
+                // Use TextColumn for safe display (XSS protection)
+                $columns[] = TextColumn::make($field->name)
                     ->label($field->display_name ?? Str::headline($field->name))
                     ->sortable()
-                    ->searchable();
+                    ->searchable()
+                    ->limit(50); // Truncate long text
             }
         }
         
@@ -105,6 +106,14 @@ class DataExplorer extends Page implements HasTable
                     }),
             ])
             ->actions([
+                EditAction::make()
+                    ->schema($this->getDynamicForm($dynamicModel))
+                    ->using(function ($record, array $data) use ($dynamicModel) {
+                        $record->setTable($dynamicModel->table_name);
+                        $record->fill($data);
+                        $record->save();
+                        return $record;
+                    }),
                 DeleteAction::make()
                     ->using(function ($record) use ($dynamicModel) {
                         $record->setTable($dynamicModel->table_name); 

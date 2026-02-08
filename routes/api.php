@@ -8,10 +8,12 @@ use App\Http\Controllers\Api\StorageController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+});
 
 // Social OAuth
 Route::get('/auth/providers', [AuthController::class, 'getProviders']);
@@ -22,7 +24,7 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
 

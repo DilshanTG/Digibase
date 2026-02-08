@@ -91,40 +91,14 @@ class StorageController extends Controller
     }
 
     /**
-     * Dangerous file extensions that should never be uploaded.
+     * Allowed file extensions.
      */
-    protected array $dangerousExtensions = [
-        'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar',
-        'exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'zsh',
-        'js', 'mjs', 'vbs', 'vbe', 'wsf', 'wsh',
-        'jar', 'jsp', 'jspx', 'asp', 'aspx', 'cer', 'csr',
-        'htaccess', 'htpasswd', 'ini', 'config',
-    ];
-
-    /**
-     * Allowed MIME types for upload.
-     */
-    protected array $allowedMimeTypes = [
-        // Images
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff',
-        // Documents
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain', 'text/csv', 'text/markdown',
-        // Archives
-        'application/zip', 'application/x-rar-compressed', 'application/gzip', 'application/x-7z-compressed',
-        // Audio
-        'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/webm',
-        // Video
-        'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo',
-        // Other
-        'application/json', 'application/xml', 'text/xml', 'application/octet-stream',
-        'image/x-icon', 'image/vnd.microsoft.icon', 'application/zip', 'application/x-zip-compressed'
+    protected array $allowedExtensions = [
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff',
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'md',
+        'zip', 'rar', 'gz', '7z',
+        'mp3', 'wav', 'ogg', 'mp4', 'webm', 'mov', 'avi',
+        'json', 'xml',
     ];
 
     /**
@@ -144,11 +118,11 @@ class StorageController extends Controller
         $folder = $request->get('folder');
         $isPublic = $request->boolean('is_public', false);
 
-        // Validate file extension
+        // Validate file extension (Whitelist Approach)
         $extension = strtolower($uploadedFile->getClientOriginalExtension());
-        if (in_array($extension, $this->dangerousExtensions)) {
+        if (!in_array($extension, $this->allowedExtensions)) {
             return response()->json([
-                'message' => 'File type not allowed for security reasons.',
+                'message' => 'File extension not allowed.',
             ], 422);
         }
 

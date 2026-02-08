@@ -24,6 +24,7 @@ class DynamicField extends Model
         'is_sortable',
         'show_in_list',
         'show_in_detail',
+        'is_hidden',
         'default_value',
         'validation_rules',
         'options',
@@ -41,6 +42,7 @@ class DynamicField extends Model
             'is_sortable' => 'boolean',
             'show_in_list' => 'boolean',
             'show_in_detail' => 'boolean',
+            'is_hidden' => 'boolean',
             'validation_rules' => 'array',
             'options' => 'array',
         ];

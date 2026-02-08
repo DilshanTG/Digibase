@@ -182,11 +182,27 @@ class DynamicDataController extends Controller
                 continue;
             }
 
+            // Filter sensitive data
+            $recordData = $data['record'] ?? $data;
+            if (is_array($recordData)) {
+                $sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'remember_token'];
+                foreach ($sensitiveKeys as $key) {
+                    if (isset($recordData[$key])) {
+                        unset($recordData[$key]);
+                    }
+                    foreach ($recordData as $k => $v) {
+                        if (Str::contains(strtolower($k), $sensitiveKeys)) {
+                            unset($recordData[$k]);
+                        }
+                    }
+                }
+            }
+
             // Build the payload
             $payload = [
                 'event' => $event,
                 'table' => $data['table'] ?? null,
-                'data' => $data['record'] ?? $data,
+                'data' => $recordData,
                 'timestamp' => now()->toIso8601String(),
             ];
 
@@ -437,6 +453,12 @@ class DynamicDataController extends Controller
         $perPage = min($request->get('per_page', 15), 100);
         $data = $query->paginate($perPage);
 
+        // Hide sensitive fields
+        $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
+        $data->getCollection()->each(function ($item) use ($hiddenFields) {
+            $item->makeHidden($hiddenFields);
+        });
+
         return response()->json([
             'data' => $data->items(),
             'meta' => [
@@ -523,6 +545,10 @@ class DynamicDataController extends Controller
         if (!$this->validateRule($model->view_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
+
+        // Hide sensitive fields
+        $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
+        $record->makeHidden($hiddenFields);
 
         return response()->json(['data' => $record]);
     }

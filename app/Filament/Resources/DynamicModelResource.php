@@ -122,7 +122,12 @@ class DynamicModelResource extends Resource
                                             ->default(false),
 
                                         Forms\Components\Checkbox::make('is_unique')
-                                            ->label('Unique Value')
+                                            ->label('Unique')
+                                            ->default(false),
+
+                                        Forms\Components\Checkbox::make('is_hidden')
+                                            ->label('Hidden (API)')
+                                            ->helperText('Hide from API responses')
                                             ->default(false),
                                     ])
                                     ->columns(5)
