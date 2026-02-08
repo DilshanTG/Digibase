@@ -1,0 +1,5 @@
+{
+    "require": {
+        "riodwanto/filament-ace-editor": "^4.1"
+    }
+}

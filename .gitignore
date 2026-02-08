@@ -1,3 +1,6 @@
+# Root
+vendor/
+
 # Backend
 backend/vendor/
 backend/.env
