@@ -25,13 +25,36 @@ class DynamicDataController extends Controller
     {
         return DynamicModel::where('table_name', $tableName)
             ->where('is_active', true)
+            ->where('generate_api', true)
             ->with('fields')
             ->first();
     }
 
     /**
+     * Extract the ownership field name from an RLS rule like "auth.id == user_id".
+     * Returns null if the rule is not an ownership check.
+     */
+    protected function extractOwnershipField(?string $rule): ?string
+    {
+        if (empty($rule)) {
+            return null;
+        }
+
+        $rule = trim(strtolower($rule));
+
+        if (preg_match('/^auth\.id\s*==\s*(\w+)$/', $rule, $matches)) {
+            $fieldName = $matches[1];
+            if ($fieldName !== 'null') {
+                return $fieldName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Validate an RLS rule expression safely (NO eval()!)
-     * 
+     *
      * Supported expressions:
      * - null/empty = Deny (Admin Only)
      * - 'true' = Allow everyone
@@ -39,7 +62,7 @@ class DynamicDataController extends Controller
      * - 'auth.id != null' = Authenticated users only
      * - 'auth.id == user_id' = Owner only (record's user_id matches auth user)
      * - 'auth.id == {field_name}' = Dynamic field ownership check
-     * 
+     *
      * @param string|null $rule The rule expression
      * @param object|null $record The record being accessed (for ownership checks)
      * @return bool Whether access is allowed
@@ -320,6 +343,18 @@ class DynamicDataController extends Controller
         // Initialize Eloquent Query on DynamicRecord
         $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
+        // Filter out soft-deleted records
+        if ($model->has_soft_deletes) {
+            $query->whereNull('deleted_at');
+        }
+
+        // RLS: Apply ownership filter for list queries (e.g. "auth.id == user_id")
+        $ownershipField = $this->extractOwnershipField($model->list_rule);
+        if ($ownershipField) {
+            $authId = auth('sanctum')->id();
+            $query->where($ownershipField, $authId);
+        }
+
         // Handle Relationships
         if ($request->has('include')) {
             $includes = explode(',', $request->get('include'));
@@ -430,6 +465,11 @@ class DynamicDataController extends Controller
 
         $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
+        // Filter out soft-deleted records
+        if ($model->has_soft_deletes) {
+            $query->whereNull('deleted_at');
+        }
+
         if ($request->has('include')) {
             $includes = explode(',', $request->get('include'));
             foreach ($includes as $include) {
@@ -439,13 +479,13 @@ class DynamicDataController extends Controller
                 if ($relDef && $relDef->relatedModel) {
                      DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
                         $relatedTable = $relDef->relatedModel->table_name;
-                        
+
                         $foreignKey = $relDef->foreign_key;
                         $localKey = $relDef->local_key ?? 'id';
 
                         if ($relDef->type === 'hasMany') {
                             $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            
+
                             $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
@@ -453,7 +493,7 @@ class DynamicDataController extends Controller
 
                         } elseif ($relDef->type === 'hasOne') {
                             $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            
+
                             $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
@@ -461,7 +501,7 @@ class DynamicDataController extends Controller
 
                         } elseif ($relDef->type === 'belongsTo') {
                             $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-                            
+
                             $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);

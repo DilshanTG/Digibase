@@ -19,8 +19,12 @@ class MigrationController extends Controller
     /**
      * Get all migrations status.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         return response()->json([
             'data' => $this->migrationService->getStatus()
         ]);
@@ -29,8 +33,12 @@ class MigrationController extends Controller
     /**
      * Run migrations.
      */
-    public function migrate(): JsonResponse
+    public function migrate(Request $request): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $result = $this->migrationService->migrate();
         return response()->json($result);
     }
@@ -38,8 +46,12 @@ class MigrationController extends Controller
     /**
      * Rollback migrations.
      */
-    public function rollback(): JsonResponse
+    public function rollback(Request $request): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $result = $this->migrationService->rollback();
         return response()->json($result);
     }

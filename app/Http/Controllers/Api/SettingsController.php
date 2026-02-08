@@ -13,8 +13,12 @@ class SettingsController extends Controller
     /**
      * Get all settings grouped by category.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $settings = Setting::all()->groupBy('group');
         return response()->json($settings);
     }
@@ -22,8 +26,12 @@ class SettingsController extends Controller
     /**
      * Get settings for a specific group.
      */
-    public function show($group): JsonResponse
+    public function show(Request $request, $group): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $settings = Setting::where('group', $group)->get();
         return response()->json($settings);
     }
@@ -33,6 +41,10 @@ class SettingsController extends Controller
      */
     public function update(Request $request): JsonResponse
     {
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $request->validate([
             'settings' => 'required|array',
             'settings.*.key' => 'required|string',
