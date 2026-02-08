@@ -5,22 +5,23 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\DynamicModelResource\Pages;
 use App\Models\DynamicModel;
 use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use BackedEnum;
 use Illuminate\Support\Str;
 
 class DynamicModelResource extends Resource
 {
     protected static ?string $model = DynamicModel::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-circle-stack';
     protected static ?string $navigationLabel = 'Table Builder';
     protected static ?string $modelLabel = 'Database Table';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
