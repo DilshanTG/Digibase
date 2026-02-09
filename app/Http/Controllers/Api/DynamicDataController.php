@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Events\ModelActivity;
+use App\Events\ModelChanged;
 use App\Models\DynamicModel;
 use App\Models\Webhook;
 use Illuminate\Http\JsonResponse;
@@ -580,6 +581,9 @@ class DynamicDataController extends Controller
 
         event(new ModelActivity('created', $model->name, $record, $request->user()));
 
+        // 📡 LIVE WIRE: Broadcast to connected clients
+        ModelChanged::dispatch($tableName, 'created', (array) $record);
+
         $this->triggerWebhooks($model->id, 'created', [
             'table' => $tableName,
             'record' => (array) $record,
@@ -659,6 +663,9 @@ class DynamicDataController extends Controller
 
         event(new ModelActivity('updated', $model->name, $record, $request->user()));
 
+        // 📡 LIVE WIRE: Broadcast to connected clients
+        ModelChanged::dispatch($tableName, 'updated', (array) $record);
+
         $this->triggerWebhooks($model->id, 'updated', [
             'table' => $tableName,
             'record' => (array) $record,
@@ -708,6 +715,9 @@ class DynamicDataController extends Controller
         }
 
         event(new ModelActivity('deleted', $model->name, ['id' => $id], $request->user()));
+
+        // 📡 LIVE WIRE: Broadcast to connected clients
+        ModelChanged::dispatch($tableName, 'deleted', ['id' => $id]);
 
         $this->triggerWebhooks($model->id, 'deleted', [
             'table' => $tableName,

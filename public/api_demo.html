@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digibase API Demo</title>
+    <title>Digibase API Demo - Real-Time</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/digibase.js"></script>
     <style>
@@ -15,7 +15,7 @@
         }
 
         body {
-            background-color: #0f172a;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
             color: #e2e8f0;
         }
 
@@ -23,46 +23,110 @@
             outline: none;
             box-shadow: 0 0 0 2px #7c3aed;
         }
+
+        /* Live feed animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .live-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .live-dot {
+            animation: pulse 1.5s infinite;
+        }
+
+        .event-created {
+            border-left: 3px solid #22c55e;
+        }
+
+        .event-updated {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .event-deleted {
+            border-left: 3px solid #ef4444;
+        }
     </style>
 </head>
 
 <body class="min-h-screen p-8 font-sans">
 
-    <div class="max-w-4xl mx-auto space-y-8">
+    <div class="max-w-6xl mx-auto space-y-8">
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div>
                 <h1
-                    class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                    Digibase API Demo
+                    class="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+                    📡 Digibase Live Demo
                 </h1>
-                <p class="text-slate-400 mt-2">Live connection to your Headless CMS</p>
+                <p class="text-slate-400 mt-2">Real-time API with WebSocket subscriptions</p>
             </div>
-            <a href="/admin"
-                class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition text-sm">
-                🔧 Admin Panel
-            </a>
+            <div class="flex gap-3">
+                <a href="/admin"
+                    class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition text-sm">
+                    🔧 Admin
+                </a>
+                <a href="/admin/api-keys"
+                    class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-sm">
+                    🔑 Keys
+                </a>
+            </div>
         </div>
 
         <!-- API Key Configuration -->
         <div class="glass p-6 rounded-xl">
             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                🔑 API Key Configuration
+                🔑 Configuration
             </h2>
-            <div class="flex gap-4 items-end">
-                <div class="flex-1">
-                    <label class="text-sm text-slate-400 block mb-2">Enter your API Key</label>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="text-sm text-slate-400 block mb-2">API Key</label>
                     <input type="text" id="api-key-input"
                         class="key-input w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-slate-200 font-mono text-sm"
                         placeholder="pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value="pk_0dwUvsUlra7AeGmkgXXJjBC3HjheSaMq">
-                    <p class="text-xs text-slate-500 mt-1">
-                        Get your key from <a href="/admin/api-keys" class="text-blue-400 hover:underline">Admin →
-                            Settings → API Keys</a>
-                    </p>
                 </div>
+                <div>
+                    <label class="text-sm text-slate-400 block mb-2">Table</label>
+                    <input type="text" id="table-input"
+                        class="key-input w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-slate-200"
+                        placeholder="authors" value="authors">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-4">
                 <button onclick="loadData()"
                     class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition font-medium">
-                    Fetch Data 🚀
+                    📥 Fetch Data
+                </button>
+                <button onclick="startSubscription()" id="subscribe-btn"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg transition font-medium flex items-center gap-2">
+                    <span class="w-2 h-2 bg-white rounded-full"></span>
+                    Subscribe Live
+                </button>
+                <button onclick="stopSubscription()" id="unsubscribe-btn"
+                    class="hidden bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-lg transition font-medium">
+                    ⏹ Unsubscribe
                 </button>
             </div>
         </div>
@@ -71,124 +135,247 @@
         <div id="status" class="hidden p-4 rounded-lg"></div>
 
         <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Left: Rendered Data -->
-            <div class="space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Data List -->
+            <div class="lg:col-span-2 space-y-4">
                 <h2 class="text-xl font-semibold text-slate-200 flex items-center gap-2">
-                    📚 Authors & Books
+                    📚 <span id="table-title">Data</span>
                 </h2>
-                <div id="authors-list" class="space-y-4">
+                <div id="data-list" class="space-y-3">
                     <div class="glass p-8 rounded-xl text-center text-slate-500">
                         Enter your API key and click "Fetch Data" to begin
                     </div>
                 </div>
             </div>
 
-            <!-- Right: Raw JSON -->
+            <!-- Right: Live Feed -->
             <div class="space-y-4">
                 <h2 class="text-xl font-semibold text-slate-200 flex items-center gap-2">
-                    🤖 Raw API Response
+                    <span id="live-indicator" class="w-3 h-3 bg-slate-500 rounded-full"></span>
+                    Live Feed
                 </h2>
-                <div class="glass p-4 rounded-xl overflow-hidden">
-                    <pre id="json-output"
-                        class="text-xs text-green-400 font-mono overflow-auto max-h-[500px]">// Response will appear here...</pre>
+                <div id="live-feed" class="glass rounded-xl p-4 h-96 overflow-y-auto space-y-3">
+                    <div class="text-center text-slate-500 text-sm py-8">
+                        <p class="text-2xl mb-2">📡</p>
+                        <p>Click "Subscribe Live" to receive</p>
+                        <p>real-time updates</p>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- SDK Code Example -->
         <div class="glass p-6 rounded-xl">
-            <h2 class="text-lg font-semibold text-white mb-4">💻 SDK Usage</h2>
-            <pre class="bg-slate-900 rounded-lg p-4 text-sm overflow-x-auto"><code class="text-green-400">// Initialize with your API key
-const db = new Digibase('/api/data').setToken('pk_your_key_here');
+            <h2 class="text-lg font-semibold text-white mb-4">💻 Real-Time SDK Usage</h2>
+            <pre class="bg-slate-900 rounded-lg p-4 text-sm overflow-x-auto"><code class="text-green-400">// Initialize SDK
+const db = new Digibase('/api/data')
+    .setToken('pk_your_key_here')
+    .configureRealtime({ host: 'localhost', port: 8080 });
 
-// Fetch authors with related books
-const authors = await db.from('authors')
-                        .include('books')
-                        .get();
+// Subscribe to ALL changes
+db.from('authors').subscribe((event) => {
+    console.log(event.action, event.data);
+    // action: 'created' | 'updated' | 'deleted'
+});
 
-// Each author has a nested 'books' array!
-authors.forEach(author => {
-    console.log(`${author.name} wrote ${author.books?.length || 0} books`);
-});</code></pre>
+// Or listen for specific events
+db.from('authors')
+    .on('created', (data) => console.log('New author:', data))
+    .on('updated', (data) => console.log('Updated:', data))
+    .on('deleted', (data) => console.log('Deleted ID:', data.id));</code></pre>
         </div>
     </div>
 
     <script>
-        async function loadData() {
-            const apiKey = document.getElementById('api-key-input').value.trim();
-            const statusEl = document.getElementById('status');
-            const listEl = document.getElementById('authors-list');
-            const jsonEl = document.getElementById('json-output');
+        let db;
+        let isSubscribed = false;
 
-            // Validate key
-            if (!apiKey) {
-                statusEl.classList.remove('hidden');
-                statusEl.className = 'p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400';
-                statusEl.innerHTML = '⚠️ Please enter your API key';
-                return;
-            }
+        function initSDK() {
+            const apiKey = document.getElementById('api-key-input').value.trim();
+            db = new Digibase('/api/data')
+                .setToken(apiKey)
+                .configureRealtime({ host: window.location.hostname, port: 8080 });
+            return db;
+        }
+
+        async function loadData() {
+            const table = document.getElementById('table-input').value.trim() || 'authors';
+            const statusEl = document.getElementById('status');
+            const listEl = document.getElementById('data-list');
+            const titleEl = document.getElementById('table-title');
+
+            initSDK();
+            titleEl.textContent = table.charAt(0).toUpperCase() + table.slice(1);
 
             // Show loading
             statusEl.classList.remove('hidden');
             statusEl.className = 'p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400';
             statusEl.innerHTML = '⏳ Fetching data...';
-            listEl.innerHTML = '<div class="glass p-8 rounded-xl text-center text-slate-500">Loading...</div>';
 
             try {
-                // Initialize SDK with API key
-                const db = new Digibase('/api/data').setToken(apiKey);
-
-                // The Magic: Fluent API Query
-                const authors = await db.from('authors').include('books').get();
+                const data = await db.from(table).include('books').get();
 
                 // Success!
                 statusEl.className = 'p-4 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400';
-                statusEl.innerHTML = `✅ Successfully fetched ${authors.length} author(s)`;
-                jsonEl.textContent = JSON.stringify(authors, null, 2);
+                statusEl.innerHTML = `✅ Fetched ${data.length} record(s) from <strong>${table}</strong>`;
 
-                // Render cards
-                if (authors.length === 0) {
+                if (data.length === 0) {
                     listEl.innerHTML = `
                         <div class="glass p-8 rounded-xl text-center text-slate-500">
                             <p class="text-2xl mb-2">📭</p>
-                            <p>No authors found.</p>
-                            <p class="text-sm mt-2">Create some in the <a href="/admin" class="text-blue-400 hover:underline">Admin Panel</a></p>
+                            <p>No records found in <strong>${table}</strong></p>
                         </div>`;
                     return;
                 }
 
-                listEl.innerHTML = authors.map(author => `
-                    <div class="glass p-5 rounded-xl hover:bg-white/5 transition">
-                        <div class="flex justify-between items-start mb-3">
-                            <h3 class="text-lg font-bold text-white">${author.name || 'Unknown'}</h3>
-                            <span class="text-xs font-mono text-slate-500">${author.country || ''}</span>
-                        </div>
-                        <div class="space-y-2">
-                            <p class="text-xs text-slate-400 font-semibold uppercase">
-                                Books (${author.books ? author.books.length : 0})
-                            </p>
-                            ${author.books && author.books.length > 0 
-                                ? `<ul class="space-y-1">${author.books.map(b => `
-                                    <li class="text-sm text-slate-300">📕 ${b.title || b.name || 'Untitled'}</li>
-                                `).join('')}</ul>`
-                                : '<p class="text-sm text-slate-600 italic">No books yet</p>'
-                            }
-                        </div>
-                    </div>
-                `).join('');
+                listEl.innerHTML = data.map(item => renderDataCard(item)).join('');
 
             } catch (error) {
                 console.error('API Error:', error);
                 statusEl.className = 'p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400';
                 statusEl.innerHTML = `❌ Error: ${error.message}`;
-                jsonEl.textContent = `Error: ${error.message}`;
-                listEl.innerHTML = `
-                    <div class="glass p-8 rounded-xl text-center text-red-400">
-                        <p class="text-2xl mb-2">🚫</p>
-                        <p>${error.message}</p>
-                        <p class="text-sm mt-2 text-slate-500">Check your API key and try again</p>
-                    </div>`;
+            }
+        }
+
+        function renderDataCard(item) {
+            const keys = Object.keys(item).filter(k => !['books', 'created_at', 'updated_at', 'deleted_at'].includes(k));
+            return `
+                <div class="glass p-4 rounded-xl hover:bg-white/5 transition" data-id="${item.id}">
+                    <div class="flex justify-between items-start">
+                        <div class="space-y-1">
+                            ${keys.map(k => `
+                                <div class="text-sm">
+                                    <span class="text-slate-500">${k}:</span>
+                                    <span class="text-slate-200 font-mono">${JSON.stringify(item[k])}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <span class="text-xs font-mono text-slate-500">ID: ${item.id}</span>
+                    </div>
+                    ${item.books && item.books.length > 0 ? `
+                        <div class="mt-3 pt-3 border-t border-slate-700/50">
+                            <p class="text-xs text-slate-500 uppercase mb-1">Related (${item.books.length})</p>
+                            <div class="flex flex-wrap gap-1">
+                                ${item.books.slice(0, 3).map(b => `
+                                    <span class="text-xs bg-slate-700 px-2 py-1 rounded">${b.title || b.name || b.id}</span>
+                                `).join('')}
+                                ${item.books.length > 3 ? `<span class="text-xs text-slate-500">+${item.books.length - 3} more</span>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function startSubscription() {
+            const table = document.getElementById('table-input').value.trim() || 'authors';
+            const feedEl = document.getElementById('live-feed');
+            const indicator = document.getElementById('live-indicator');
+            const subscribeBtn = document.getElementById('subscribe-btn');
+            const unsubscribeBtn = document.getElementById('unsubscribe-btn');
+
+            initSDK();
+
+            // Clear feed
+            feedEl.innerHTML = '';
+            addToFeed('📡 Connecting to real-time channel...', 'info');
+
+            try {
+                db.from(table)
+                    .on('created', (data, event) => {
+                        addToFeed(`✨ Created: ID ${data.id}`, 'created', data);
+                        highlightCard(data.id, 'created');
+                    })
+                    .on('updated', (data, event) => {
+                        addToFeed(`📝 Updated: ID ${data.id}`, 'updated', data);
+                        highlightCard(data.id, 'updated');
+                    })
+                    .on('deleted', (data, event) => {
+                        addToFeed(`🗑️ Deleted: ID ${data.id}`, 'deleted', data);
+                        removeCard(data.id);
+                    });
+
+                // Update UI
+                isSubscribed = true;
+                indicator.className = 'w-3 h-3 bg-emerald-500 rounded-full live-dot';
+                subscribeBtn.classList.add('hidden');
+                unsubscribeBtn.classList.remove('hidden');
+
+                setTimeout(() => {
+                    addToFeed(`🟢 Subscribed to <strong>public-data.${table}</strong>`, 'success');
+                }, 500);
+
+            } catch (error) {
+                addToFeed(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function stopSubscription() {
+            const table = document.getElementById('table-input').value.trim() || 'authors';
+            const indicator = document.getElementById('live-indicator');
+            const subscribeBtn = document.getElementById('subscribe-btn');
+            const unsubscribeBtn = document.getElementById('unsubscribe-btn');
+
+            if (db) {
+                db.unsubscribe(table);
+            }
+
+            isSubscribed = false;
+            indicator.className = 'w-3 h-3 bg-slate-500 rounded-full';
+            subscribeBtn.classList.remove('hidden');
+            unsubscribeBtn.classList.add('hidden');
+
+            addToFeed('⏹ Unsubscribed', 'info');
+        }
+
+        function addToFeed(message, type, data = null) {
+            const feedEl = document.getElementById('live-feed');
+            const time = new Date().toLocaleTimeString();
+            
+            const itemClass = {
+                'created': 'event-created bg-green-500/5',
+                'updated': 'event-updated bg-blue-500/5',
+                'deleted': 'event-deleted bg-red-500/5',
+                'info': 'bg-slate-500/5 border-l-3 border-slate-500',
+                'success': 'bg-emerald-500/5 border-l-3 border-emerald-500',
+                'error': 'bg-red-500/5 border-l-3 border-red-500',
+            }[type] || 'bg-slate-500/5';
+
+            const html = `
+                <div class="live-item ${itemClass} p-3 rounded-lg text-sm">
+                    <div class="flex justify-between items-center mb-1">
+                        <span>${message}</span>
+                        <span class="text-xs text-slate-500">${time}</span>
+                    </div>
+                    ${data ? `<pre class="text-xs text-slate-400 mt-2 overflow-x-auto">${JSON.stringify(data, null, 2)}</pre>` : ''}
+                </div>
+            `;
+
+            feedEl.insertAdjacentHTML('afterbegin', html);
+
+            // Keep only last 50 items
+            while (feedEl.children.length > 50) {
+                feedEl.removeChild(feedEl.lastChild);
+            }
+        }
+
+        function highlightCard(id, action) {
+            const card = document.querySelector(`[data-id="${id}"]`);
+            if (card) {
+                const color = action === 'created' ? 'ring-green-500' : 'ring-blue-500';
+                card.classList.add('ring-2', color);
+                setTimeout(() => card.classList.remove('ring-2', color), 2000);
+            } else if (action === 'created') {
+                // Refresh to show new item
+                loadData();
+            }
+        }
+
+        function removeCard(id) {
+            const card = document.querySelector(`[data-id="${id}"]`);
+            if (card) {
+                card.classList.add('opacity-50', 'line-through');
+                setTimeout(() => card.remove(), 1000);
             }
         }
     </script>
