@@ -10,7 +10,7 @@
                 $dynamicModel = \App\Models\DynamicModel::find($tableId);
             @endphp
             @if($dynamicModel)
-                @livewire(\App\Filament\Widgets\UniverSheetWidget::class, ['tableName' => $dynamicModel->table_name])
+                @livewire(\App\Filament\Widgets\UniverSheetWidget::class, ['tableId' => $tableId])
             @endif
         @else
             {{ $this->table }}

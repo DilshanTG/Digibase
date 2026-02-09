@@ -19,7 +19,7 @@ class UniverSheetWidget extends Widget
     {
         // Try to get tableId from query string if not set
         if (!$this->tableId) {
-            $this->tableId = request()->query('tableId');
+            $this->tableId = request()->query('tableId') ?? request()->query('tableid');
         }
     }
 

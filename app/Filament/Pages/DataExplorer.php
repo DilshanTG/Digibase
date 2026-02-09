@@ -41,7 +41,9 @@ class DataExplorer extends Page implements HasTable
 
     public function mount(): void
     {
-        $this->tableId = request()->query('tableId');
+        if (!$this->tableId) {
+            $this->tableId = request()->query('tableId') ?? request()->query('tableid');
+        }
         $this->isSpreadsheet = (bool) request()->query('spreadsheet');
     }
 
