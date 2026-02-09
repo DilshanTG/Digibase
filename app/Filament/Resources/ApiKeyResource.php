@@ -11,6 +11,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Schemas\Components\Section;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -194,7 +195,7 @@ class ApiKeyResource extends Resource
                     ->falseLabel('Inactive Only'),
             ])
             ->actions([
-                Tables\Actions\Action::make('copy')
+                Action::make('copy')
                     ->label('Copy Key')
                     ->icon('heroicon-o-clipboard')
                     ->color('gray')
@@ -202,7 +203,7 @@ class ApiKeyResource extends Resource
                     ->extraAttributes(fn ($record) => [
                         'x-on:click' => "navigator.clipboard.writeText('{$record->key}'); \$tooltip('Copied!')",
                     ]),
-                Tables\Actions\Action::make('toggle')
+                Action::make('toggle')
                     ->label(fn ($record) => $record->is_active ? 'Deactivate' : 'Activate')
                     ->icon(fn ($record) => $record->is_active ? 'heroicon-o-pause' : 'heroicon-o-play')
                     ->color(fn ($record) => $record->is_active ? 'warning' : 'success')
