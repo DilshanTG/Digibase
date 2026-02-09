@@ -86,7 +86,7 @@ function convertToUniverData(dbData, schema) {
 /**
  * 🚀 Initialization Function
  */
-window.initUniverInstance = function (containerId, tableData, schema, saveUrl, csrfToken) {
+window.initUniverInstance = function (containerId, tableData, schema, saveUrl, csrfToken, apiKey) {
     console.log(`🚀 Booting Univer for #${containerId}`);
 
     // 1. Cleanup old instance
@@ -161,26 +161,26 @@ window.initUniverInstance = function (containerId, tableData, schema, saveUrl, c
     console.log("✅ Univer Intelligence ONLINE");
 
     // 6. 📡 ACTIVATE WRITE-BACK ENGINE
-    setupWriteBack(univer, tableData, schema, saveUrl, csrfToken);
+    setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey);
 };
 
 /**
  * 💾 Write-Back Logic
  */
-function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken) {
+function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey) {
     const commandService = univer.__getInjector().get(ICommandService);
 
     commandService.onCommandExecuted((command) => {
         if (command.id === 'sheet.command.set-range-values') {
             const params = command.params;
             if (params && params.range && params.value) {
-                handleEdit(params, tableData, schema, saveUrl, csrfToken);
+                handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey);
             }
         }
     });
 }
 
-async function handleEdit(params, tableData, schema, saveUrl, csrfToken) {
+async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey) {
     const { startRow, startColumn } = params.range;
 
     // Ignore Header Row (Row 0)
@@ -214,7 +214,8 @@ async function handleEdit(params, tableData, schema, saveUrl, csrfToken) {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'x-api-key': apiKey
             },
             body: JSON.stringify({
                 [field.name]: newValue

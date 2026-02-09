@@ -22,6 +22,7 @@
                 tableName: '{{ $tableName }}',
                 saveUrl: '{{ $saveUrl }}',
                 csrfToken: '{{ $csrfToken }}',
+                apiToken: '{{ $apiToken }}',
                 schema: {{ json_encode($schema) }},
                 tableData: {{ json_encode($tableData) }},
                 initialized: false,
@@ -43,7 +44,8 @@
                                 this.tableData,
                                 this.schema,
                                 this.saveUrl,
-                                this.csrfToken
+                                this.csrfToken,
+                                this.apiToken
                             );
                             this.initialized = true;
                         } catch (e) {
