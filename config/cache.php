@@ -91,6 +91,12 @@ return [
             'driver' => 'octane',
         ],
 
+        'digibase' => [
+            'driver' => env('DIGIBASE_CACHE_DRIVER', 'file'),
+            'path' => storage_path('framework/cache/digibase'),
+            'lock_path' => storage_path('framework/cache/digibase'),
+        ],
+
         'failover' => [
             'driver' => 'failover',
             'stores' => [

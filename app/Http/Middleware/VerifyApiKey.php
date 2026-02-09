@@ -78,14 +78,24 @@ class VerifyApiKey
             ], 403);
         }
 
-        // 6. Record Usage (throttled: update at most once per minute per key)
+        // 6. Check Table-Level Access (if route has a tableName parameter)
+        $tableName = $request->route('tableName');
+        if ($tableName && !$apiKey->hasTableAccess($tableName)) {
+            return response()->json([
+                'success' => false,
+                'message' => "This API key does not have access to table '{$tableName}'",
+                'error_code' => 'TABLE_ACCESS_DENIED',
+            ], 403);
+        }
+
+        // 7. Record Usage (throttled: update at most once per minute per key)
         $usageCacheKey = "api_key_usage:{$apiKey->id}";
         if (!Cache::has($usageCacheKey)) {
             $apiKey->recordUsage();
             Cache::put($usageCacheKey, true, 60);
         }
 
-        // 7. Attach Key to Request for use in Controllers
+        // 8. Attach Key to Request for use in Controllers
         $request->attributes->set('api_key', $apiKey);
         $request->attributes->set('api_key_user', $apiKey->user);
 

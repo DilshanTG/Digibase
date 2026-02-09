@@ -15,9 +15,10 @@ class ApiKey extends Model
         'user_id',
         'name',
         'key',
-        'type',           // 'public' or 'secret'
-        'scopes',         // JSON array: ['read', 'write', 'delete']
-        'rate_limit',     // Requests per minute
+        'type',             // 'public' or 'secret'
+        'scopes',           // JSON array: ['read', 'write', 'delete']
+        'allowed_tables',   // JSON array: ['posts', 'comments'] or null/empty for all
+        'rate_limit',       // Requests per minute
         'is_active',
         'expires_at',
         'last_used_at',
@@ -25,6 +26,7 @@ class ApiKey extends Model
 
     protected $casts = [
         'scopes' => 'array',
+        'allowed_tables' => 'array',
         'is_active' => 'boolean',
         'expires_at' => 'datetime',
         'last_used_at' => 'datetime',
@@ -85,6 +87,22 @@ class ApiKey extends Model
     public function canDelete(): bool
     {
         return $this->hasScope('delete') || $this->hasScope('*');
+    }
+
+    /**
+     * Check if key has access to a specific table.
+     * Null/empty allowed_tables means access to all tables.
+     */
+    public function hasTableAccess(string $tableName): bool
+    {
+        $allowed = $this->allowed_tables;
+
+        // Null or empty array = unrestricted access to all tables
+        if (empty($allowed)) {
+            return true;
+        }
+
+        return in_array($tableName, $allowed);
     }
 
     /**

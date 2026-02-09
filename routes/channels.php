@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ApiKey;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -7,14 +8,27 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 /**
- * 📡 LIVE WIRE: Public data channel for real-time model updates.
- * 
- * This is a public channel that allows any connected client to receive
- * updates for a specific table. Authentication is handled at the API
- * level via API keys, not at the WebSocket level.
- * 
- * Channel: public-data.{tableName}
- * Events: model.changed (created, updated, deleted)
+ * Private data channel for real-time model updates.
+ *
+ * Channel: private-data.{tableName}
+ * Authorization: User must own at least one active API key with read scope
+ * and access to the requested table.
  */
-// Note: Public channels don't need authorization callbacks.
-// The Channel class (not PrivateChannel) is used in ModelChanged event.
+Broadcast::channel('data.{tableName}', function ($user, $tableName) {
+    // User must have at least one active, non-expired key with read access to this table
+    $keys = ApiKey::where('user_id', $user->id)
+        ->where('is_active', true)
+        ->where(function ($q) {
+            $q->whereNull('expires_at')
+              ->orWhere('expires_at', '>', now());
+        })
+        ->get();
+
+    foreach ($keys as $key) {
+        if ($key->hasScope('read') && $key->hasTableAccess($tableName)) {
+            return true;
+        }
+    }
+
+    return false;
+});
