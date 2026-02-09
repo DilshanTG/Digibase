@@ -33,14 +33,37 @@ import docsUIEnUS from "@univerjs/docs-ui/lib/locale/en-US";
 import sheetsEnUS from "@univerjs/sheets/lib/locale/en-US";
 import sheetsUIEnUS from "@univerjs/sheets-ui/lib/locale/en-US";
 
-// Global instance keeper to prevent duplicates
+// Global instance keeper
 let univerInstance = null;
 
 /**
- * 🔄 Data Converter
+ * 🛠️ CSS Patch for Editing
+ * Forces the Univer Editor popup to appear above Filament's UI
+ */
+function injectEditorStyles() {
+    const styleId = 'univer-editor-fix';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.innerHTML = `
+            /* Ensure editor popups are visible */
+            .univer-editor-container, .univer-popup-container, .univer-float-dom-container {
+                z-index: 9999 !important;
+            }
+            /* Ensure the grid receives pointer events */
+            .univer-render-canvas {
+                pointer-events: auto !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+/**
+ * 🔄 Data Converter (STRICT MODE)
  */
 function convertToUniverData(dbData, schema) {
-    console.log("🔄 Translating Data:", { records: dbData.length, fields: schema.length });
+    console.log("🔄 Translating Data (Strict Mode):", { records: dbData.length, fields: schema.length });
 
     const cellData = {};
 
@@ -52,9 +75,10 @@ function convertToUniverData(dbData, schema) {
             t: 1,
             s: {
                 bl: 1,
-                bg: { rgb: '#f1f5f9' },
+                bg: { rgb: '#e2e8f0' }, // Filament Slate-200
                 ht: 2, // Center
-                vt: 2  // Middle
+                vt: 2, // Middle
+                fw: 600 // Semi-bold
             }
         };
     });
@@ -78,8 +102,9 @@ function convertToUniverData(dbData, schema) {
 
     return {
         cellData,
-        rowCount: Math.max(dbData.length + 50, 100),
-        columnCount: Math.max(schema.length + 5, 26)
+        // STRICT LIMITS: Prevent users from scrolling into infinity
+        rowCount: dbData.length + 10, // Only allow 10 empty rows at bottom
+        columnCount: schema.length // EXACT column count. No ghost columns.
     };
 }
 
@@ -87,26 +112,21 @@ function convertToUniverData(dbData, schema) {
  * 🚀 Initialization Function
  */
 window.initUniverInstance = function (containerId, tableData, schema, saveUrl, csrfToken, apiKey) {
-    console.log(`🚀 Booting Univer for #${containerId}`);
+    injectEditorStyles(); // Apply CSS patch
+    console.log(`🚀 Booting Univer Strict Mode for #${containerId}`);
 
-    // 1. Cleanup old instance
+    // 1. Cleanup
     if (univerInstance) {
-        console.log("🧹 Cleaning up old instance...");
-        try {
-            univerInstance.dispose();
-        } catch (e) {
-            console.warn("Dispose error (can be ignored):", e);
-        }
+        try { univerInstance.dispose(); } catch (e) { }
         univerInstance = null;
     }
-
     const container = document.getElementById(containerId);
     if (container) container.innerHTML = '';
 
     // 2. Prepare Data
     const { cellData, rowCount, columnCount } = convertToUniverData(tableData, schema);
 
-    // 3. Init Core with Locales
+    // 3. Init Core
     const univer = new Univer({
         theme: defaultTheme,
         locale: LocaleType.EN_US,
@@ -122,45 +142,54 @@ window.initUniverInstance = function (containerId, tableData, schema, saveUrl, c
     });
     univerInstance = univer;
 
-    // 4. Register Plugins
+    // 4. Register Plugins (Order matters for dependency injection)
     univer.registerPlugin(UniverRenderEnginePlugin);
     univer.registerPlugin(UniverFormulaEnginePlugin);
+    univer.registerPlugin(UniverDocsPlugin);
+    univer.registerPlugin(UniverDocsUIPlugin); // Crucial for cell editing
+    univer.registerPlugin(UniverSheetsPlugin);
+    univer.registerPlugin(UniverSheetsFormulaPlugin);
+    univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
+    // UI Plugin with Full Features
     univer.registerPlugin(UniverUIPlugin, {
         container: containerId,
         header: true,
         toolbar: true,
-        footer: true
+        footer: true, // Shows sheet tabs
     });
 
-    univer.registerPlugin(UniverDocsPlugin);
-    univer.registerPlugin(UniverDocsUIPlugin);
-    univer.registerPlugin(UniverSheetsPlugin);
-    univer.registerPlugin(UniverSheetsUIPlugin);
-    univer.registerPlugin(UniverSheetsFormulaPlugin);
-    univer.registerPlugin(UniverSheetsNumfmtPlugin);
+    univer.registerPlugin(UniverSheetsUIPlugin); // Must register after UIPlugin
 
-    // 5. Create Workbook
-    const workbook = univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
+    // 5. Create Workbook (The "Prison" for Data)
+    univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         id: 'digibase-workbook',
         sheets: {
             'sheet-1': {
-                name: 'Data',
+                name: 'Database',
                 id: 'sheet-1',
                 cellData: cellData,
                 rowCount: rowCount,
-                columnCount: columnCount,
+                columnCount: columnCount, // Strict limit
+                // Auto-width columns
                 columnData: schema.reduce((acc, col, i) => {
-                    acc[i] = { w: 180 };
+                    acc[i] = { w: 150 };
                     return acc;
-                }, {})
+                }, {}),
+                // Freeze the Header Row
+                freeze: {
+                    xSplit: 0,
+                    ySplit: 1, // Freeze Row 1 (Header)
+                    startRow: 0,
+                    startColumn: 0,
+                }
             }
         }
     });
 
     console.log("✅ Univer Intelligence ONLINE");
 
-    // 6. 📡 ACTIVATE WRITE-BACK ENGINE
+    // 6. Activate Write-Back
     setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey);
 };
 
@@ -171,6 +200,7 @@ function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey) {
     const commandService = univer.__getInjector().get(ICommandService);
 
     commandService.onCommandExecuted((command) => {
+        // Listen for standard cell edits
         if (command.id === 'sheet.command.set-range-values') {
             const params = command.params;
             if (params && params.range && params.value) {
@@ -183,31 +213,33 @@ function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey) {
 async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey) {
     const { startRow, startColumn } = params.range;
 
-    // Ignore Header Row (Row 0)
-    if (startRow === 0) return;
+    if (startRow === 0) {
+        console.warn("🚫 Header row is read-only");
+        return;
+    }
 
-    // Identify Record
     const dataIndex = startRow - 1;
     const record = tableData[dataIndex];
 
     if (!record || !record.id) {
-        console.warn("⚠️ No ID found for row " + startRow);
+        console.warn("⚠️ Cannot edit empty row. Please use 'Create' button to add records.");
         return;
     }
 
-    // Identify Field
     const field = schema[startColumn];
     if (!field) return;
 
-    // Get New Value
+    // Extract value safely
     const cellUpdate = params.value && params.value[startRow] && params.value[startRow][startColumn];
-    if (!cellUpdate) return;
 
-    const newValue = cellUpdate.v;
+    // Check if cell was cleared or updated
+    let newValue = null;
+    if (cellUpdate) {
+        newValue = cellUpdate.v !== undefined ? cellUpdate.v : null;
+    }
 
     console.log(`📝 Syncing Edit: ID ${record.id} | ${field.name} = ${newValue}`);
 
-    // 🔥 Send API Request (Using CSRF and Session)
     try {
         const response = await fetch(`${saveUrl}/${record.id}`, {
             method: 'PUT',
@@ -222,10 +254,14 @@ async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey)
             })
         });
 
-        if (!response.ok) throw new Error(`Server status: ${response.status}`);
-        console.log("✅ Database Updated!");
+        if (!response.ok) {
+            console.error(`❌ Save Failed: ${response.status}`);
+            // Logic to revert cell could go here
+        } else {
+            console.log("✅ Database Updated!");
+        }
     } catch (error) {
-        console.error("❌ Sync Failed:", error);
+        console.error("❌ Network Error:", error);
     }
 }
 
