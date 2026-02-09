@@ -1,0 +1,61 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@theme {
+    /* PocketBase-inspired Enterprise Palette */
+    --color-primary-50: #eef2ff;
+    --color-primary-100: #e0e7ff;
+    --color-primary-200: #c7d2fe;
+    --color-primary-300: #a5b4fc;
+    --color-primary-400: #818cf8;
+    --color-primary-500: #6366f1; /* PocketBase Indigo */
+    --color-primary-600: #4f46e5;
+    --color-primary-700: #4338ca;
+    --color-primary-800: #3730a3;
+    --color-primary-900: #312e81;
+    --color-primary-950: #1e1b4b;
+
+    --color-gray-50: #f8fafc;
+    --color-gray-100: #f1f5f9;
+    --color-gray-200: #e2e8f0;
+    --color-gray-300: #cbd5e1;
+    --color-gray-400: #94a3b8;
+    --color-gray-500: #64748b;
+    --color-gray-600: #475569;
+    --color-gray-700: #334155;
+    --color-gray-800: #1e293b;
+    --color-gray-900: #0f172a;
+    --color-gray-950: #020617;
+}
+
+/* 🎨 ENTERPRISE POLISH OVERRIDES */
+
+/* Compact Tables */
+.fi-ta-content {
+    @apply divide-y divide-gray-200 dark:divide-white/5;
+}
+
+.fi-ta-record-picker-label,
+.fi-ta-cell {
+    @apply py-3 px-4;
+}
+
+/* Smooth Transitions */
+button, input, a, .fi-sidebar-item {
+    @apply transition-all duration-200 ease-in-out;
+}
+
+/* Glassmorphism for Topbar */
+.fi-topbar {
+    @apply border-b border-gray-200/50 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-gray-900/80;
+}
+
+/* Sharper Borders & Subtle Shadows */
+.fi-section, .fi-card {
+    @apply border-gray-200/60 shadow-sm ring-1 ring-gray-950/5 dark:border-white/10 dark:bg-gray-900 dark:ring-white/10;
+    border-radius: 0.5rem;
+}
+
+/* High-Contrast Inputs */
+.fi-input-wrapper {
+    @apply border-gray-300 shadow-none focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:border-white/10;
+}

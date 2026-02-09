@@ -34,10 +34,11 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->colors([
-                'primary' => Color::Zinc,
+                'primary' => Color::Indigo,
                 'gray' => Color::Slate,
             ])
             ->font('Inter')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth('full')
             ->navigationGroups([
