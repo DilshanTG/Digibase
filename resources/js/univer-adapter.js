@@ -145,13 +145,8 @@ window.initUniverInstance = function (containerId, tableData, schema, saveUrl, c
     // 4. Register Plugins (Order matters for dependency injection)
     univer.registerPlugin(UniverRenderEnginePlugin);
     univer.registerPlugin(UniverFormulaEnginePlugin);
-    univer.registerPlugin(UniverDocsPlugin);
-    univer.registerPlugin(UniverDocsUIPlugin); // Crucial for cell editing
-    univer.registerPlugin(UniverSheetsPlugin);
-    univer.registerPlugin(UniverSheetsFormulaPlugin);
-    univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
-    // UI Plugin with Full Features
+    // UI Plugin with Full Features (Register early as other UI plugins depend on its services)
     univer.registerPlugin(UniverUIPlugin, {
         container: containerId,
         header: true,
@@ -159,7 +154,12 @@ window.initUniverInstance = function (containerId, tableData, schema, saveUrl, c
         footer: true, // Shows sheet tabs
     });
 
-    univer.registerPlugin(UniverSheetsUIPlugin); // Must register after UIPlugin
+    univer.registerPlugin(UniverDocsPlugin);
+    univer.registerPlugin(UniverDocsUIPlugin); // Crucial for cell editing
+    univer.registerPlugin(UniverSheetsPlugin);
+    univer.registerPlugin(UniverSheetsUIPlugin);
+    univer.registerPlugin(UniverSheetsFormulaPlugin);
+    univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
     // 5. Create Workbook (The "Prison" for Data)
     univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
