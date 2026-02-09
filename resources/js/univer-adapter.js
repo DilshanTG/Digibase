@@ -1,4 +1,4 @@
-console.log("� Univer Adapter Module starting execution...");
+console.log("📍 Univer Adapter Module starting execution...");
 
 /**
  * 🎨 UNIVERSAL STYLES (Crucial for the Grid)
@@ -33,51 +33,48 @@ import docsUIEnUS from "@univerjs/docs-ui/lib/locale/en-US";
 import sheetsEnUS from "@univerjs/sheets/lib/locale/en-US";
 import sheetsUIEnUS from "@univerjs/sheets-ui/lib/locale/en-US";
 
+// Global instance keeper to prevent duplicates
+let univerInstance = null;
+
 /**
- * 🔄 The Translator: Converts Laravel JSON -> Univer Grid Data
- * Improved: Added high-precision mapping and display values (m).
+ * 🔄 Data Converter
  */
 function convertToUniverData(dbData, schema) {
     console.log("🔄 Translating Data:", { records: dbData.length, fields: schema.length });
 
     const cellData = {};
 
-    // 1. Create Headers (Row 0)
+    // Row 0: Headers
     if (!cellData[0]) cellData[0] = {};
     schema.forEach((field, colIndex) => {
         cellData[0][colIndex] = {
-            v: field.name.toUpperCase(),
-            t: 1, // String
+            v: field.name,
+            t: 1,
             s: {
-                bl: 1, // Bold
-                bg: { rgb: '#f1f5f9' }, // Gray Background
+                bl: 1,
+                bg: { rgb: '#f1f5f9' },
                 ht: 2, // Center
                 vt: 2  // Middle
             }
         };
     });
 
-    // 2. Map Data Rows (Row 1 to N)
+    // Row 1+: Data
     dbData.forEach((record, dataIndex) => {
         const rowIndex = dataIndex + 1;
         if (!cellData[rowIndex]) cellData[rowIndex] = {};
 
         schema.forEach((field, colIndex) => {
             let val = record[field.name];
-
-            // Safety check for nulls
             if (val === null || val === undefined) val = "";
 
             cellData[rowIndex][colIndex] = {
-                v: String(val), // Raw Value
-                m: String(val), // Display Value
-                t: 1 // Type: String
+                v: String(val),
+                m: String(val),
+                t: 1
             };
         });
     });
-
-    console.log("✅ Translation Complete. Row 0 (Header):", cellData[0]);
-    if (cellData[1]) console.log("✅ Row 1 Data:", cellData[1]);
 
     return {
         cellData,
@@ -87,140 +84,147 @@ function convertToUniverData(dbData, schema) {
 }
 
 /**
- * Global Initialization Function
+ * 🚀 Initialization Function
  */
-window.initUniverInstance = function (containerId, options = {}) {
-    console.log(`🚀 Booting Univer for container: #${containerId}`);
+window.initUniverInstance = function (containerId, tableData, schema, saveUrl, csrfToken) {
+    console.log(`🚀 Booting Univer for #${containerId}`);
 
-    const { tableName, apiToken, schema, records } = options;
-
-    // Debug: Check if data is actually arriving
-    if (!records || records.length === 0) {
-        console.warn("⚠️ WARNING: records is empty! The grid will be blank.");
+    // 1. Cleanup old instance
+    if (univerInstance) {
+        console.log("🧹 Cleaning up old instance...");
+        try {
+            univerInstance.dispose();
+        } catch (e) {
+            console.warn("Dispose error (can be ignored):", e);
+        }
+        univerInstance = null;
     }
 
-    try {
-        // 1. Cleanup previous instance if exists (prevent memory leaks)
-        const container = document.getElementById(containerId);
-        if (container) container.innerHTML = '';
+    const container = document.getElementById(containerId);
+    if (container) container.innerHTML = '';
 
-        // 2. Initialize Univer with Locales & Theme
-        const univer = new Univer({
-            theme: defaultTheme,
-            locale: LocaleType.EN_US,
-            locales: {
-                [LocaleType.EN_US]: Tools.deepMerge(
-                    enUS,
-                    uiEnUS,
-                    docsUIEnUS,
-                    sheetsEnUS,
-                    sheetsUIEnUS
-                ),
-            },
-        });
+    // 2. Prepare Data
+    const { cellData, rowCount, columnCount } = convertToUniverData(tableData, schema);
 
-        // 3. Register Plugins
-        univer.registerPlugin(UniverRenderEnginePlugin);
-        univer.registerPlugin(UniverFormulaEnginePlugin);
+    // 3. Init Core with Locales
+    const univer = new Univer({
+        theme: defaultTheme,
+        locale: LocaleType.EN_US,
+        locales: {
+            [LocaleType.EN_US]: Tools.deepMerge(
+                enUS,
+                uiEnUS,
+                docsUIEnUS,
+                sheetsEnUS,
+                sheetsUIEnUS
+            ),
+        },
+    });
+    univerInstance = univer;
 
-        univer.registerPlugin(UniverUIPlugin, {
-            container: containerId,
-            header: true,
-            toolbar: true,
-            footer: true,
-        });
+    // 4. Register Plugins
+    univer.registerPlugin(UniverRenderEnginePlugin);
+    univer.registerPlugin(UniverFormulaEnginePlugin);
 
-        univer.registerPlugin(UniverDocsPlugin);
-        univer.registerPlugin(UniverDocsUIPlugin);
-        univer.registerPlugin(UniverSheetsPlugin);
-        univer.registerPlugin(UniverSheetsUIPlugin);
-        univer.registerPlugin(UniverSheetsFormulaPlugin);
-        univer.registerPlugin(UniverSheetsNumfmtPlugin);
+    univer.registerPlugin(UniverUIPlugin, {
+        container: containerId,
+        header: true,
+        toolbar: true,
+        footer: true
+    });
 
-        // 4. Prepare Data using the Translator
-        const { cellData, rowCount, columnCount } = convertToUniverData(records, schema);
+    univer.registerPlugin(UniverDocsPlugin);
+    univer.registerPlugin(UniverDocsUIPlugin);
+    univer.registerPlugin(UniverSheetsPlugin);
+    univer.registerPlugin(UniverSheetsUIPlugin);
+    univer.registerPlugin(UniverSheetsFormulaPlugin);
+    univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
-        // 5. Create Workbook
-        console.log("📝 Creating Workbook with Rows:", rowCount);
-        const workbook = univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
-            id: 'digibase-sheet-' + tableName,
-            name: tableName.toUpperCase(),
-            sheets: {
-                'sheet-01': {
-                    id: 'sheet-01',
-                    name: 'Data',
-                    cellData: cellData,
-                    rowCount: rowCount,
-                    columnCount: columnCount,
-                    columnData: schema.reduce((acc, col, i) => {
-                        acc[i] = { w: 180 };
-                        return acc;
-                    }, {})
-                }
+    // 5. Create Workbook
+    const workbook = univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
+        id: 'digibase-workbook',
+        sheets: {
+            'sheet-1': {
+                name: 'Data',
+                id: 'sheet-1',
+                cellData: cellData,
+                rowCount: rowCount,
+                columnCount: columnCount,
+                columnData: schema.reduce((acc, col, i) => {
+                    acc[i] = { w: 180 };
+                    return acc;
+                }, {})
             }
-        });
+        }
+    });
 
-        // 6. Setup Auto-Save
-        const commandService = univer.__getInjector().get(ICommandService);
+    console.log("✅ Univer Intelligence ONLINE");
 
-        let isSaving = false;
-        commandService.onCommandExecuted((command) => {
-            if (command.id === 'sheet.command.set-range-values') {
-                handleUpdate(command.params, schema, records, tableName, apiToken, () => isSaving, (val) => isSaving = val);
-            }
-        });
-
-        console.log("✅ Univer Intelligence ONLINE for " + tableName);
-        return { univer, workbook };
-    } catch (err) {
-        console.error("🔥 Univer Engine Exception:", err);
-    }
+    // 6. 📡 ACTIVATE WRITE-BACK ENGINE
+    setupWriteBack(univer, tableData, schema, saveUrl, csrfToken);
 };
 
 /**
- * Save Handler
+ * 💾 Write-Back Logic
  */
-async function handleUpdate(params, schema, records, tableName, apiToken, getIsSaving, setIsSaving) {
-    const { cellValue } = params;
-    const columns = schema.map(f => ({ key: f.name }));
+function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken) {
+    const commandService = univer.__getInjector().get(ICommandService);
 
-    for (const r in cellValue) {
-        const rowIndex = parseInt(r);
-        if (rowIndex === 0) continue;
-
-        const record = records[rowIndex - 1];
-        if (!record || !record.id) continue;
-
-        const rowChanges = cellValue[r];
-        const updates = {};
-
-        for (const c in rowChanges) {
-            const colIndex = parseInt(c);
-            if (!columns[colIndex]) continue;
-
-            const colKey = columns[colIndex].key;
-            updates[colKey] = rowChanges[c].v;
-        }
-
-        if (Object.keys(updates).length > 0 && !getIsSaving()) {
-            setIsSaving(true);
-            try {
-                await fetch(`/api/data/${tableName}/${record.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-KEY': apiToken,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(updates)
-                });
-                console.log(`✅ Saved record ${record.id}`);
-            } catch (e) {
-                console.error(`❌ Save failed for ${record.id}:`, e);
-            } finally {
-                setIsSaving(false);
+    commandService.onCommandExecuted((command) => {
+        if (command.id === 'sheet.command.set-range-values') {
+            const params = command.params;
+            if (params && params.range && params.value) {
+                handleEdit(params, tableData, schema, saveUrl, csrfToken);
             }
         }
+    });
+}
+
+async function handleEdit(params, tableData, schema, saveUrl, csrfToken) {
+    const { startRow, startColumn } = params.range;
+
+    // Ignore Header Row (Row 0)
+    if (startRow === 0) return;
+
+    // Identify Record
+    const dataIndex = startRow - 1;
+    const record = tableData[dataIndex];
+
+    if (!record || !record.id) {
+        console.warn("⚠️ No ID found for row " + startRow);
+        return;
+    }
+
+    // Identify Field
+    const field = schema[startColumn];
+    if (!field) return;
+
+    // Get New Value
+    const cellUpdate = params.value && params.value[startRow] && params.value[startRow][startColumn];
+    if (!cellUpdate) return;
+
+    const newValue = cellUpdate.v;
+
+    console.log(`📝 Syncing Edit: ID ${record.id} | ${field.name} = ${newValue}`);
+
+    // 🔥 Send API Request (Using CSRF and Session)
+    try {
+        const response = await fetch(`${saveUrl}/${record.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                [field.name]: newValue
+            })
+        });
+
+        if (!response.ok) throw new Error(`Server status: ${response.status}`);
+        console.log("✅ Database Updated!");
+    } catch (error) {
+        console.error("❌ Sync Failed:", error);
     }
 }
 

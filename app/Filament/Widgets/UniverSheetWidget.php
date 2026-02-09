@@ -2,69 +2,72 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\DynamicModel;
-use App\Models\ApiKey;
 use Filament\Widgets\Widget;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Request;
+use App\Models\DynamicModel;
+use App\Models\DynamicRecord;
+use App\Models\ApiKey;
+use Illuminate\Support\Facades\Log;
 
 class UniverSheetWidget extends Widget
 {
-    protected string $view = 'filament.widgets.univer-sheet';
+    protected static string $view = 'filament.widgets.univer-sheet';
+    protected int|string|array $columnSpan = 'full';
 
-    public ?string $tableName = null;
-    
-    protected int | string | array $columnSpan = 'full';
+    public ?string $tableId = null;
 
-    /**
-     * Get data for the view
-     */
+    public function mount()
+    {
+        // Try to get tableId from query string if not set
+        if (!$this->tableId) {
+            $this->tableId = request()->query('tableId');
+        }
+    }
+
     protected function getViewData(): array
     {
-        // Resolve tableName from property, then query 'table', then query 'tableId'
-        if (!$this->tableName) {
-            $this->tableName = Request::query('table');
+        if (!$this->tableId) {
+            return ['hasData' => false];
+        }
+
+        $dynamicModel = DynamicModel::with('fields')->find($this->tableId);
+
+        if (!$dynamicModel) {
+            return ['hasData' => false];
+        }
+
+        // 1. Fetch Schema (Fields)
+        $schema = $dynamicModel->fields->map(function ($field) {
+            return [
+                'name' => $field->name,
+                'type' => $field->type,
+                'label' => $field->label ?? $field->name,
+                'id' => $field->id,
+            ];
+        })->toArray();
+
+        // 2. Fetch Records (Data)
+        try {
+            $modelClass = new DynamicRecord();
+            $modelClass->setDynamicTable($dynamicModel->table_name);
             
-            if (!$this->tableName && $tableId = Request::query('tableId')) {
-                $this->tableName = DynamicModel::find($tableId)?->table_name;
-            }
+            // Fetch ID + all fields defined in schema
+            $records = $modelClass->get()->toArray();
+        } catch (\Exception $e) {
+            Log::error("Univer Widget Data Error: " . $e->getMessage());
+            $records = [];
         }
 
-        if (!$this->tableName) {
-            return [
-                'tableName' => null,
-                'schema' => [],
-                'records' => [],
-                'apiToken' => '',
-            ];
-        }
-
-        $model = DynamicModel::where('table_name', $this->tableName)->with('fields')->first();
-        
-        if (!$model) {
-            return [
-                'tableName' => $this->tableName,
-                'schema' => [],
-                'records' => [],
-                'apiToken' => '',
-            ];
-        }
-
-        // Fetch records
-        $records = DB::table($this->tableName)
-            ->whereNull('deleted_at') // Handle soft deletes manually as per index logic
-            ->limit(500) // Safety limit for spreadsheets
-            ->get();
-
-        // Get or Create an API Key for the current user for auto-save
-        // In a real app, you might use a dedicated temporary session token.
-        // For now, we'll try to find an active API Key or just use the session if the API supports it.
+        // 3. API Context
         $apiKey = ApiKey::where('is_active', true)->first()?->key ?? 'DEMO_KEY';
 
         return [
-            'tableName' => $this->tableName,
-            'schema' => $model->fields->toArray(),
-            'records' => $records->toArray(),
+            'hasData' => true,
+            'tableId' => $this->tableId,
+            'tableName' => $dynamicModel->table_name,
+            'schema' => $schema,
+            'tableData' => $records,
+            'saveUrl' => url('/api/data/' . $dynamicModel->table_name),
+            'csrfToken' => csrf_token(),
             'apiToken' => $apiKey,
         ];
     }
