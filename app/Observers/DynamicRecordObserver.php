@@ -2,97 +2,112 @@
 
 namespace App\Observers;
 
+use App\Models\DynamicModel;
 use App\Models\DynamicRecord;
 use App\Events\ModelChanged;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * 🧠 CENTRAL NERVOUS SYSTEM: DynamicRecordObserver
- * 
- * This Observer is the single source of truth for:
- * - 📡 Real-time event broadcasting (Live Wire)
- * - ⚡ Cache invalidation (Turbo Cache)
- * 
- * This ensures consistent behavior regardless of how data is modified:
- * - API Controller
- * - Filament Admin Panel
- * - Tinker/CLI
- * - Queue Jobs
- * - Database Seeders
+ * Central nervous system for DynamicRecord lifecycle.
+ *
+ * Handles:
+ * - Real-time event broadcasting (with hidden field filtering)
+ * - Cache invalidation (using dedicated digibase store)
  */
 class DynamicRecordObserver
 {
-    /**
-     * Handle the DynamicRecord "created" event.
-     */
     public function created(DynamicRecord $record): void
     {
         $tableName = $record->getTable();
-        
+
         if ($tableName) {
-            // 📡 LIVE WIRE: Broadcast to connected clients
-            event(new ModelChanged($tableName, 'created', $record->toArray()));
-            
-            // ⚡ TURBO CACHE: Clear stale cache
+            $data = $this->filterHiddenFields($tableName, $record->toArray());
+            event(new ModelChanged($tableName, 'created', $data));
             $this->clearTableCache($tableName);
         }
     }
 
-    /**
-     * Handle the DynamicRecord "updated" event.
-     */
     public function updated(DynamicRecord $record): void
     {
         $tableName = $record->getTable();
-        
+
         if ($tableName) {
-            // DETECT SOFT DELETE: If deleted_at was set, treat as deleted
+            // Detect soft delete
             if ($record->wasChanged('deleted_at') && !empty($record->getAttribute('deleted_at'))) {
                 event(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
                 $this->clearTableCache($tableName);
                 return;
             }
 
-            // 📡 LIVE WIRE: Broadcast to connected clients
-            event(new ModelChanged($tableName, 'updated', $record->toArray()));
-            
-            // ⚡ TURBO CACHE: Clear stale cache
+            $data = $this->filterHiddenFields($tableName, $record->toArray());
+            event(new ModelChanged($tableName, 'updated', $data));
             $this->clearTableCache($tableName);
         }
     }
 
-    /**
-     * Handle the DynamicRecord "deleted" event.
-     */
     public function deleted(DynamicRecord $record): void
     {
         $tableName = $record->getTable();
-        
+
         if ($tableName) {
-            // 📡 LIVE WIRE: Broadcast to connected clients
             event(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
-            
-            // ⚡ TURBO CACHE: Clear stale cache
             $this->clearTableCache($tableName);
         }
     }
 
     /**
-     * Clear cache for a specific table.
-     * Supports both tagged cache (Redis) and file cache.
+     * Remove fields marked as is_hidden in the DynamicModel schema
+     * before broadcasting. Prevents leaking passwords, tokens, etc.
+     */
+    protected function filterHiddenFields(string $tableName, array $data): array
+    {
+        $model = DynamicModel::where('table_name', $tableName)
+            ->with('fields')
+            ->first();
+
+        if (!$model) {
+            return $data;
+        }
+
+        $hiddenFields = $model->fields
+            ->where('is_hidden', true)
+            ->pluck('name')
+            ->toArray();
+
+        // Also always strip common sensitive patterns
+        $sensitivePatterns = ['password', 'secret', 'token', 'key', 'credential'];
+
+        foreach ($data as $key => $value) {
+            if (in_array($key, $hiddenFields)) {
+                unset($data[$key]);
+                continue;
+            }
+
+            foreach ($sensitivePatterns as $pattern) {
+                if (stripos($key, $pattern) !== false) {
+                    unset($data[$key]);
+                    break;
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Clear cache for a specific table using the dedicated digibase store.
      */
     protected function clearTableCache(string $tableName): void
     {
-        $driver = config('cache.default');
-        
-        // Tagged cache for Redis/Memcached
+        $store = Cache::store('digibase');
+        $driver = config('cache.stores.digibase.driver', 'file');
+
         if (in_array($driver, ['redis', 'memcached', 'dynamodb'])) {
-            Cache::tags(["digibase:{$tableName}"])->flush();
+            $store->tags(["digibase:{$tableName}"])->flush();
         } else {
-            // For file/database cache, we need pattern-based clearing
-            // Best effort: clear all Digibase cache
-            // In production, use Redis for proper tagging support
-            Cache::flush();
+            // For file/database: flush the entire dedicated digibase store.
+            // This is safe because it only contains API cache, not sessions/routes.
+            $store->flush();
         }
     }
 }

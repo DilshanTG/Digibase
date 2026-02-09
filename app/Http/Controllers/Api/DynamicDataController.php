@@ -7,6 +7,7 @@ use App\Events\ModelActivity;
 use App\Events\ModelChanged;
 use App\Models\DynamicModel;
 use App\Models\Webhook;
+use App\Services\UrlValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +129,16 @@ class DynamicDataController extends Controller
 
         foreach ($webhooks as $webhook) {
             if (!$webhook->shouldTrigger($event)) {
+                continue;
+            }
+
+            // SSRF Protection: block webhooks targeting internal networks
+            $urlCheck = UrlValidator::validateWebhookUrl($webhook->url);
+            if (!$urlCheck['valid']) {
+                Log::warning("Webhook SSRF blocked: {$webhook->url}", [
+                    'reason' => $urlCheck['reason'],
+                    'webhook_id' => $webhook->id,
+                ]);
                 continue;
             }
 
@@ -287,6 +298,28 @@ class DynamicDataController extends Controller
         }
 
         return $rules;
+    }
+
+    /**
+     * Cast a value to the correct PHP type based on the DynamicField schema.
+     * Prevents SQLite type-affinity issues (e.g., string "abc" in integer column).
+     */
+    protected function castValue(mixed $value, \App\Models\DynamicField $field): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($field->type) {
+            'integer' => (int) $value,
+            'float', 'decimal' => (float) $value,
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
+            'json' => is_array($value) ? json_encode($value) : $value,
+            'date' => is_string($value) ? date('Y-m-d', strtotime($value)) : $value,
+            'datetime' => is_string($value) ? date('Y-m-d H:i:s', strtotime($value)) : $value,
+            'time' => is_string($value) ? date('H:i:s', strtotime($value)) : $value,
+            default => $value,
+        };
     }
 
     /**
@@ -554,17 +587,7 @@ class DynamicDataController extends Controller
         $data = [];
         foreach ($model->fields as $field) {
             if ($request->has($field->name)) {
-                $value = $request->input($field->name);
-
-                if ($field->type === 'json' && is_array($value)) {
-                    $value = json_encode($value);
-                }
-
-                if ($field->type === 'boolean') {
-                    $value = (bool) $value;
-                }
-
-                $data[$field->name] = $value;
+                $data[$field->name] = $this->castValue($request->input($field->name), $field);
             } elseif ($field->default_value !== null) {
                 $data[$field->name] = $field->default_value;
             }
@@ -575,7 +598,7 @@ class DynamicDataController extends Controller
             $data['updated_at'] = now();
         }
 
-        // 🧘 OBSERVER PATTERN: Use Eloquent to trigger Observer events
+        // Use Eloquent to trigger Observer events
         $record = new DynamicRecord();
         $record->setDynamicTable($tableName);
         $record->timestamps = false; // We handle timestamps manually in $data
@@ -637,22 +660,11 @@ class DynamicDataController extends Controller
         $data = [];
         foreach ($model->fields as $field) {
             if ($request->has($field->name)) {
-                $value = $request->input($field->name);
-
-                if ($field->type === 'json' && is_array($value)) {
-                    $value = json_encode($value);
-                }
-
-                if ($field->type === 'boolean') {
-                    $value = (bool) $value;
-                }
-
-                $data[$field->name] = $value;
+                $data[$field->name] = $this->castValue($request->input($field->name), $field);
             }
         }
 
-
-        // 🧘 OBSERVER PATTERN: Use Eloquent to trigger Observer events
+        // Use Eloquent to trigger Observer events
         $recordInstance = new DynamicRecord();
         $recordInstance->setDynamicTable($tableName);
         

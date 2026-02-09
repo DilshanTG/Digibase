@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ApiKeyResource\Pages;
 use App\Models\ApiKey;
+use App\Models\DynamicModel;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -68,6 +69,18 @@ class ApiKeyResource extends Resource
                             ->columns(3)
                             ->helperText('Select what this key can do'),
 
+                        Forms\Components\Select::make('allowed_tables')
+                            ->label('Allowed Tables')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->options(function () {
+                                return DynamicModel::where('is_active', true)
+                                    ->pluck('display_name', 'table_name')
+                                    ->toArray();
+                            })
+                            ->helperText('Leave empty to allow access to ALL tables. Select specific tables to restrict.'),
+
                         Forms\Components\DateTimePicker::make('expires_at')
                             ->label('Expiration Date')
                             ->nullable()
@@ -130,6 +143,14 @@ class ApiKeyResource extends Resource
                     ->badge()
                     ->separator(',')
                     ->color('primary'),
+
+                Tables\Columns\TextColumn::make('allowed_tables')
+                    ->label('Tables')
+                    ->badge()
+                    ->separator(',')
+                    ->color('warning')
+                    ->placeholder('All Tables')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
