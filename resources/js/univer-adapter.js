@@ -1,4 +1,4 @@
-console.log("📍 Univer Adapter Module starting execution...");
+console.log("� Univer Adapter Module starting execution...");
 
 /**
  * 🎨 UNIVERSAL STYLES (Crucial for the Grid)
@@ -35,22 +35,22 @@ import sheetsUIEnUS from "@univerjs/sheets-ui/lib/locale/en-US";
 
 /**
  * 🔄 The Translator: Converts Laravel JSON -> Univer Grid Data
+ * Improved: Added high-precision mapping and display values (m).
  */
 function convertToUniverData(dbData, schema) {
+    console.log("🔄 Translating Data:", { records: dbData.length, fields: schema.length });
+
     const cellData = {};
-    const columnCount = schema.length;
-    const rowCount = dbData.length + 1; // +1 for Header
 
     // 1. Create Headers (Row 0)
+    if (!cellData[0]) cellData[0] = {};
     schema.forEach((field, colIndex) => {
-        if (!cellData[0]) cellData[0] = {};
-
         cellData[0][colIndex] = {
             v: field.name.toUpperCase(),
-            t: 1, // Type: String
+            t: 1, // String
             s: {
                 bl: 1, // Bold
-                bg: { rgb: '#e2e8f0' }, // Slate-200
+                bg: { rgb: '#f1f5f9' }, // Gray Background
                 ht: 2, // Center
                 vt: 2  // Middle
             }
@@ -63,24 +63,26 @@ function convertToUniverData(dbData, schema) {
         if (!cellData[rowIndex]) cellData[rowIndex] = {};
 
         schema.forEach((field, colIndex) => {
-            let value = record[field.name];
-            if (value === null || value === undefined) value = "";
+            let val = record[field.name];
+
+            // Safety check for nulls
+            if (val === null || val === undefined) val = "";
 
             cellData[rowIndex][colIndex] = {
-                v: String(value),
-                t: 1,
-                s: {
-                    ht: 1, // Left
-                    vt: 2  // Middle
-                }
+                v: String(val), // Raw Value
+                m: String(val), // Display Value
+                t: 1 // Type: String
             };
         });
     });
 
+    console.log("✅ Translation Complete. Row 0 (Header):", cellData[0]);
+    if (cellData[1]) console.log("✅ Row 1 Data:", cellData[1]);
+
     return {
         cellData,
-        rowCount: Math.max(rowCount, 100),
-        columnCount: Math.max(columnCount, 26)
+        rowCount: Math.max(dbData.length + 50, 100),
+        columnCount: Math.max(schema.length + 5, 26)
     };
 }
 
@@ -88,12 +90,21 @@ function convertToUniverData(dbData, schema) {
  * Global Initialization Function
  */
 window.initUniverInstance = function (containerId, options = {}) {
-    console.log("🚀 window.initUniverInstance START", { containerId });
+    console.log(`🚀 Booting Univer for container: #${containerId}`);
 
     const { tableName, apiToken, schema, records } = options;
 
+    // Debug: Check if data is actually arriving
+    if (!records || records.length === 0) {
+        console.warn("⚠️ WARNING: records is empty! The grid will be blank.");
+    }
+
     try {
-        // 1. Initialize Univer with Locales & Theme
+        // 1. Cleanup previous instance if exists (prevent memory leaks)
+        const container = document.getElementById(containerId);
+        if (container) container.innerHTML = '';
+
+        // 2. Initialize Univer with Locales & Theme
         const univer = new Univer({
             theme: defaultTheme,
             locale: LocaleType.EN_US,
@@ -108,7 +119,7 @@ window.initUniverInstance = function (containerId, options = {}) {
             },
         });
 
-        // 2. Register Plugins
+        // 3. Register Plugins
         univer.registerPlugin(UniverRenderEnginePlugin);
         univer.registerPlugin(UniverFormulaEnginePlugin);
 
@@ -126,10 +137,11 @@ window.initUniverInstance = function (containerId, options = {}) {
         univer.registerPlugin(UniverSheetsFormulaPlugin);
         univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
-        // 3. Prepare Data using the Translator
+        // 4. Prepare Data using the Translator
         const { cellData, rowCount, columnCount } = convertToUniverData(records, schema);
 
-        // 4. Create Workbook
+        // 5. Create Workbook
+        console.log("📝 Creating Workbook with Rows:", rowCount);
         const workbook = univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
             id: 'digibase-sheet-' + tableName,
             name: tableName.toUpperCase(),
@@ -148,7 +160,7 @@ window.initUniverInstance = function (containerId, options = {}) {
             }
         });
 
-        // 5. Setup Auto-Save
+        // 6. Setup Auto-Save
         const commandService = univer.__getInjector().get(ICommandService);
 
         let isSaving = false;
