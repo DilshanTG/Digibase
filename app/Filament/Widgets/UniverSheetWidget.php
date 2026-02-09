@@ -57,8 +57,10 @@ class UniverSheetWidget extends Widget
             $records = [];
         }
 
-        // 3. API Context
-        $apiKey = ApiKey::where('is_active', true)->first()?->key ?? 'DEMO_KEY';
+        // 3. API Context - Use a key owned by the current user, not any random active key
+        $apiKey = ApiKey::where('is_active', true)
+            ->where('user_id', auth()->id())
+            ->first()?->key ?? '';
 
         return [
             'hasData' => true,

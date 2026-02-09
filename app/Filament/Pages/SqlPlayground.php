@@ -65,21 +65,47 @@ class SqlPlayground extends Page implements HasForms
 
     public function runQuery()
     {
-        $this->results = []; 
+        $this->results = [];
         $this->message = '';
-        
+
         try {
             $sql = trim($this->query);
             if (empty($sql)) return;
 
+            // Strip comments to prevent bypass
             $cleanSql = preg_replace('/--.*$/m', '', $sql);
-            $cleanSql = trim($cleanSql);
+            $cleanSql = preg_replace('/#.*$/m', '', $cleanSql);
+            $cleanSql = preg_replace('/\/\*[\s\S]*?\*\//', '', $cleanSql);
+            $cleanSql = preg_replace('/\s+/', ' ', trim($cleanSql));
+
+            // Block queries that touch protected system tables
+            foreach ($this->protectedTables as $table) {
+                if (preg_match('/\b' . preg_quote($table, '/') . '\b/i', $cleanSql)) {
+                    Notification::make()->danger()->title('Blocked')->body("Access to system table '{$table}' is restricted.")->send();
+                    return;
+                }
+            }
+
+            // Block multiple statements (prevent piggy-backing)
+            if (preg_match('/;\s*\S/', $cleanSql)) {
+                Notification::make()->danger()->title('Blocked')->body('Multiple statements are not allowed.')->send();
+                return;
+            }
 
             if (stripos($cleanSql, 'SELECT') === 0 || stripos($cleanSql, 'SHOW') === 0 || stripos($cleanSql, 'DESCRIBE') === 0 || stripos($cleanSql, 'WITH') === 0) {
                 $this->results = json_decode(json_encode(DB::select($sql)), true);
                 $count = count($this->results);
                 Notification::make()->success()->title('Query Loaded')->body("$count rows found.")->send();
             } else {
+                // For non-SELECT queries, block truly destructive operations on any table
+                $destructive = ['DROP DATABASE', 'DROP SCHEMA', 'TRUNCATE'];
+                foreach ($destructive as $keyword) {
+                    if (stripos($cleanSql, $keyword) !== false) {
+                        Notification::make()->danger()->title('Blocked')->body("'{$keyword}' is not allowed.")->send();
+                        return;
+                    }
+                }
+
                 DB::unprepared($sql);
                 $this->message = "Command executed successfully.";
                 Notification::make()->success()->title('Executed')->send();

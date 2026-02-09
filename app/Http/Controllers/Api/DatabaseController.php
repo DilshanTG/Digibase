@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DynamicModel;
+use App\Models\DynamicRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,9 @@ class DatabaseController extends Controller
         'webhooks',
         'settings',
         'storage_files',
+        'api_keys',
+        'db_config',
+        'file_system_items',
     ];
 
     /**
@@ -346,10 +350,14 @@ class DatabaseController extends Controller
         }
 
         try {
-            $id = DB::table($tableName)->insertGetId($data);
-            $row = DB::table($tableName)->where('id', $id)->first();
+            // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
+            $record = new DynamicRecord();
+            $record->setDynamicTable($tableName);
+            $record->timestamps = false;
+            $record->fill($data);
+            $record->save();
 
-            return response()->json(['data' => $row], 201);
+            return response()->json(['data' => $record->fresh()], 201);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Insert error: ' . $e->getMessage()], 400);
         }
@@ -377,10 +385,13 @@ class DatabaseController extends Controller
         }
 
         try {
-            DB::table($tableName)->where('id', $id)->update($data);
-            $row = DB::table($tableName)->where('id', $id)->first();
+            // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
+            $record = (new DynamicRecord())->setDynamicTable($tableName)->findOrFail($id);
+            $record->setDynamicTable($tableName);
+            $record->timestamps = false;
+            $record->update($data);
 
-            return response()->json(['data' => $row]);
+            return response()->json(['data' => $record->fresh()]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Update error: ' . $e->getMessage()], 400);
         }
@@ -400,10 +411,15 @@ class DatabaseController extends Controller
         }
 
         try {
+            // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
+            $record = (new DynamicRecord())->setDynamicTable($tableName)->findOrFail($id);
+            $record->setDynamicTable($tableName);
+            $record->timestamps = false;
+
             if ($dynamicModel->has_soft_deletes) {
-                DB::table($tableName)->where('id', $id)->update(['deleted_at' => now()]);
+                $record->update(['deleted_at' => now()]);
             } else {
-                DB::table($tableName)->where('id', $id)->delete();
+                $record->delete();
             }
 
             return response()->json(['message' => 'Row deleted successfully']);
