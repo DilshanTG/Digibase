@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
+
+class ApiKey extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'name',
+        'key',
+        'type',           // 'public' or 'secret'
+        'scopes',         // JSON array: ['read', 'write', 'delete']
+        'rate_limit',     // Requests per minute
+        'is_active',
+        'expires_at',
+        'last_used_at',
+    ];
+
+    protected $casts = [
+        'scopes' => 'array',
+        'is_active' => 'boolean',
+        'expires_at' => 'datetime',
+        'last_used_at' => 'datetime',
+    ];
+
+    protected $hidden = [
+        'key', // Never expose the full key in responses
+    ];
+
+    /**
+     * The user who owns this API key.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Generate a new API key.
+     * 
+     * @param string $type 'public' or 'secret'
+     * @return string The plain text key (only shown once!)
+     */
+    public static function generateKey(string $type = 'public'): string
+    {
+        $prefix = $type === 'secret' ? 'sk_' : 'pk_';
+        return $prefix . Str::random(32);
+    }
+
+    /**
+     * Check if key has a specific scope.
+     */
+    public function hasScope(string $scope): bool
+    {
+        $scopes = $this->scopes ?? [];
+        return in_array('*', $scopes) || in_array($scope, $scopes);
+    }
+
+    /**
+     * Check if key can read data.
+     */
+    public function canRead(): bool
+    {
+        return $this->hasScope('read') || $this->hasScope('*');
+    }
+
+    /**
+     * Check if key can write data.
+     */
+    public function canWrite(): bool
+    {
+        return $this->hasScope('write') || $this->hasScope('*');
+    }
+
+    /**
+     * Check if key can delete data.
+     */
+    public function canDelete(): bool
+    {
+        return $this->hasScope('delete') || $this->hasScope('*');
+    }
+
+    /**
+     * Check if the key is valid (active and not expired).
+     */
+    public function isValid(): bool
+    {
+        if (!$this->is_active) {
+            return false;
+        }
+
+        if ($this->expires_at && $this->expires_at->isPast()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Record that this key was used.
+     */
+    public function recordUsage(): void
+    {
+        $this->update(['last_used_at' => now()]);
+    }
+
+    /**
+     * Get masked key for display (pk_xxxx...xxxx).
+     */
+    public function getMaskedKeyAttribute(): string
+    {
+        $key = $this->key;
+        if (strlen($key) < 10) {
+            return str_repeat('*', strlen($key));
+        }
+        return substr($key, 0, 6) . '...' . substr($key, -4);
+    }
+
+    /**
+     * Scope: Active keys only.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope: Non-expired keys only.
+     */
+    public function scopeNotExpired($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('expires_at')
+              ->orWhere('expires_at', '>', now());
+        });
+    }
+}

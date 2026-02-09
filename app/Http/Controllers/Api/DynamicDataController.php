@@ -15,9 +15,12 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Models\DynamicRecord;
+use App\Http\Traits\TurboCache;
 
 class DynamicDataController extends Controller
 {
+    use TurboCache;
+
     /**
      * Get the dynamic model by name (slug) OR table_name.
      */
@@ -296,6 +299,17 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
+        // 🚀 TURBO CACHE: Wrap the query in cache
+        return $this->cached($tableName, $request, function () use ($request, $model, $tableName) {
+            return $this->executeIndexQuery($request, $model, $tableName);
+        });
+    }
+
+    /**
+     * Execute the actual index query (extracted for caching).
+     */
+    protected function executeIndexQuery(Request $request, DynamicModel $model, string $tableName): JsonResponse
+    {
         $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
         if ($model->has_soft_deletes) {
@@ -559,6 +573,9 @@ class DynamicDataController extends Controller
             'record' => (array) $record,
         ]);
 
+        // 🚀 TURBO CACHE: Clear cache for this table
+        $this->clearTableCache($tableName);
+
         return response()->json(['data' => $record], 201);
     }
 
@@ -643,6 +660,9 @@ class DynamicDataController extends Controller
             'record' => (array) $record,
         ]);
 
+        // 🚀 TURBO CACHE: Clear cache for this table
+        $this->clearTableCache($tableName);
+
         return response()->json(['data' => $record]);
     }
 
@@ -689,6 +709,9 @@ class DynamicDataController extends Controller
             'table' => $tableName,
             'record' => $recordData,
         ]);
+
+        // 🚀 TURBO CACHE: Clear cache for this table
+        $this->clearTableCache($tableName);
 
         return response()->json(['message' => 'Record deleted successfully']);
     }

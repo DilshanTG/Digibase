@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use App\Models\DynamicModel;
 use App\Models\DynamicRelationship;
+use App\Models\ApiKey;
 use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
@@ -16,6 +17,7 @@ class DynamicRelationTest extends TestCase
     // NO RefreshDatabase - Manual Schema Management
     
     protected $user;
+    protected $apiKey;
 
     protected function setUp(): void
     {
@@ -39,12 +41,23 @@ class DynamicRelationTest extends TestCase
             $table->foreignId('author_id'); // No constraint needed for test logic, just column
             $table->timestamps();
         });
+
+        // Create API Key for testing
+        $this->apiKey = ApiKey::create([
+            'user_id' => $this->user->id,
+            'name' => 'Test Key',
+            'key' => 'test_key_' . uniqid(),
+            'type' => 'secret',
+            'scopes' => ['read', 'write', 'delete'],
+            'is_active' => true,
+        ]);
     }
 
     protected function tearDown(): void
     {
         Schema::dropIfExists('test_books');
         Schema::dropIfExists('test_authors');
+        Schema::dropIfExists('api_keys');
         Schema::dropIfExists('dynamic_relationships');
         Schema::dropIfExists('dynamic_fields');
         Schema::dropIfExists('dynamic_models');
@@ -112,6 +125,23 @@ class DynamicRelationTest extends TestCase
             $table->json('settings')->nullable();
             $table->timestamps();
         });
+
+        // 5. API Keys
+        if (!Schema::hasTable('api_keys')) {
+            Schema::create('api_keys', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id');
+                $table->string('name');
+                $table->string('key', 64)->unique();
+                $table->string('type')->default('public');
+                $table->json('scopes')->nullable();
+                $table->integer('rate_limit')->default(60);
+                $table->boolean('is_active')->default(true);
+                $table->timestamp('expires_at')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /** @test */
@@ -162,7 +192,7 @@ class DynamicRelationTest extends TestCase
         ]);
 
         // 4. Hit API (Protected Route /api/data/...)
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->apiKey->key)
             ->getJson("/api/data/test_authors?include=books");
 
         // 5. Assertions
@@ -218,7 +248,7 @@ class DynamicRelationTest extends TestCase
         ]);
 
         // 4. Hit API (Protected Route)
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->apiKey->key)
             ->getJson("/api/data/test_books?include=author");
 
         // 5. Assertions

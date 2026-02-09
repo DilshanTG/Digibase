@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ApiKeyResource\Pages;
+use App\Models\ApiKey;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -10,17 +11,14 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Schemas\Components\Section;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use BackedEnum;
-use Laravel\Sanctum\PersonalAccessToken;
 use UnitEnum;
 
 class ApiKeyResource extends Resource
 {
-    protected static ?string $model = PersonalAccessToken::class;
+    protected static ?string $model = ApiKey::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-key';
 
@@ -36,33 +34,64 @@ class ApiKeyResource extends Resource
     {
         return $schema
             ->schema([
-                Section::make('Token Details')
+                Section::make('Key Configuration')
+                    ->description('Configure your API key settings')
                     ->schema([
-                        // 1. Select User manually (Don't use ->relationship!)
-                        Forms\Components\Select::make('tokenable_id')
-                            ->label('User')
-                            ->options(\App\Models\User::pluck('name', 'id'))
-                            ->searchable()
-                            ->required(),
-
-                        // 2. Token Name
                         Forms\Components\TextInput::make('name')
-                            ->label('Token Name (e.g. Mobile App)')
-                            ->required(),
+                            ->label('Key Name')
+                            ->placeholder('e.g., Mobile App, Frontend, Partner Integration')
+                            ->required()
+                            ->maxLength(255)
+                            ->helperText('A friendly name to identify this key'),
 
-                        // 3. Abilities
-                        Forms\Components\CheckboxList::make('abilities')
+                        Forms\Components\Select::make('type')
+                            ->label('Key Type')
+                            ->options([
+                                'public' => '🔓 Public (Read-Only) - pk_xxx',
+                                'secret' => '🔐 Secret (Full Access) - sk_xxx',
+                            ])
+                            ->default('public')
+                            ->required()
+                            ->live()
+                            ->helperText('Public keys can only read. Secret keys can create, update, and delete.'),
+
+                        Forms\Components\CheckboxList::make('scopes')
                             ->label('Permissions')
                             ->options([
-                                '*' => 'Full Access (*)',
-                                'read' => 'Read Only',
-                                'create' => 'Create',
-                                'update' => 'Update',
-                                'delete' => 'Delete',
+                                'read' => '📖 Read - View & list data',
+                                'write' => '✏️ Write - Create & update data',
+                                'delete' => '🗑️ Delete - Remove data',
                             ])
-                            ->default(['*'])
-                            ->columns(3),
+                            ->default(fn ($get) => $get('type') === 'secret' 
+                                ? ['read', 'write', 'delete'] 
+                                : ['read'])
+                            ->columns(3)
+                            ->helperText('Select what this key can do'),
+
+                        Forms\Components\DateTimePicker::make('expires_at')
+                            ->label('Expiration Date')
+                            ->nullable()
+                            ->minDate(now()->addHour())
+                            ->helperText('Leave empty for no expiration'),
+
+                        Forms\Components\TextInput::make('rate_limit')
+                            ->label('Rate Limit (requests/minute)')
+                            ->numeric()
+                            ->default(60)
+                            ->minValue(1)
+                            ->maxValue(1000)
+                            ->helperText('Maximum API calls per minute'),
                     ])
+                    ->columns(2),
+
+                Section::make('Status')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true)
+                            ->helperText('Deactivate to temporarily disable this key'),
+                    ])
+                    ->collapsible(),
             ]);
     }
 
@@ -71,39 +100,93 @@ class ApiKeyResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Token Name')
+                    ->label('Name')
                     ->searchable()
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->icon('heroicon-o-key'),
 
-                Tables\Columns\TextColumn::make('plain_text_token')
+                Tables\Columns\TextColumn::make('masked_key')
                     ->label('Key')
-                    ->formatStateUsing(fn ($state) => str_repeat('•', 8) . substr($state, -4))
                     ->copyable()
-                    ->copyableState(fn ($record) => $record->plain_text_token)
-                    ->copyMessage('API Key copied to clipboard')
-                    ->description('Click to copy full key'),
-
-                Tables\Columns\TextColumn::make('tokenable.name')
-                    ->label('User')
-                    ->searchable(),
-
-                Tables\Columns\TextColumn::make('abilities')
-                    ->badge()
+                    ->copyableState(fn ($record) => $record->key)
+                    ->copyMessage('🔑 API Key copied!')
+                    ->fontFamily('mono')
                     ->color('gray'),
+
+                Tables\Columns\BadgeColumn::make('type')
+                    ->label('Type')
+                    ->colors([
+                        'gray' => 'public',
+                        'danger' => 'secret',
+                    ])
+                    ->icons([
+                        'heroicon-o-lock-open' => 'public',
+                        'heroicon-o-lock-closed' => 'secret',
+                    ]),
+
+                Tables\Columns\TextColumn::make('scopes')
+                    ->label('Scopes')
+                    ->badge()
+                    ->separator(',')
+                    ->color('primary'),
+
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Active')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger'),
 
                 Tables\Columns\TextColumn::make('last_used_at')
                     ->label('Last Used')
                     ->dateTime('M j, Y H:i')
                     ->placeholder('Never')
-                    ->sortable(),
+                    ->sortable()
+                    ->color('gray'),
+
+                Tables\Columns\TextColumn::make('expires_at')
+                    ->label('Expires')
+                    ->dateTime('M j, Y')
+                    ->placeholder('Never')
+                    ->sortable()
+                    ->color(fn ($record) => $record->expires_at?->isPast() ? 'danger' : 'gray'),
 
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label('Created')
                     ->dateTime('M j, Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([])
+            ->defaultSort('created_at', 'desc')
+            ->filters([
+                Tables\Filters\SelectFilter::make('type')
+                    ->options([
+                        'public' => 'Public Keys',
+                        'secret' => 'Secret Keys',
+                    ]),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Active Status')
+                    ->boolean()
+                    ->trueLabel('Active Only')
+                    ->falseLabel('Inactive Only'),
+            ])
             ->actions([
+                Tables\Actions\Action::make('copy')
+                    ->label('Copy Key')
+                    ->icon('heroicon-o-clipboard')
+                    ->color('gray')
+                    ->action(fn () => null) // Handled by JS
+                    ->extraAttributes(fn ($record) => [
+                        'x-on:click' => "navigator.clipboard.writeText('{$record->key}'); \$tooltip('Copied!')",
+                    ]),
+                Tables\Actions\Action::make('toggle')
+                    ->label(fn ($record) => $record->is_active ? 'Deactivate' : 'Activate')
+                    ->icon(fn ($record) => $record->is_active ? 'heroicon-o-pause' : 'heroicon-o-play')
+                    ->color(fn ($record) => $record->is_active ? 'warning' : 'success')
+                    ->requiresConfirmation()
+                    ->action(fn ($record) => $record->update(['is_active' => !$record->is_active])),
                 DeleteAction::make()
                     ->label('Revoke'),
             ])
@@ -112,7 +195,10 @@ class ApiKeyResource extends Resource
                     DeleteBulkAction::make()
                         ->label('Revoke Selected'),
                 ]),
-            ]);
+            ])
+            ->emptyStateHeading('No API Keys')
+            ->emptyStateDescription('Create your first API key to start using the API.')
+            ->emptyStateIcon('heroicon-o-key');
     }
 
     public static function getRelations(): array

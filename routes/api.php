@@ -36,10 +36,23 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 // Public file downloads (auth checked inside controller for private files)
 Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
-// Public Read Access (For Testing)
-Route::middleware(['throttle:60,1'])->group(function () {
+// ============================================================================
+// DYNAMIC DATA API - Protected by API Key (The "Iron Dome")
+// ============================================================================
+// Read operations: Require 'read' scope (pk_ keys work!)
+// Write operations: Require 'write' scope (sk_ keys only)
+// Delete operations: Require 'delete' scope (sk_ keys only)
+// ============================================================================
+Route::middleware(['api.key', 'throttle:60,1'])->group(function () {
+    // Read (pk_ or sk_ keys)
     Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
     Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
+    Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
+    
+    // Write (sk_ keys only - enforced by middleware scope check)
+    Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
+    Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
+    Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
 });
 
 // Protected routes
@@ -55,12 +68,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/models/{dynamicModel}/fields', [DynamicModelController::class, 'addFields']);
     Route::put('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'updateField']);
     Route::delete('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'destroyField']);
-
-    // Dynamic Data API (Auto-generated CRUD for dynamic models)
-    Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
-    Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
-    Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
-    Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
 
     // File Storage
     Route::get('/storage/stats', [StorageController::class, 'stats']);
