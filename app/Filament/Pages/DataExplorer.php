@@ -50,6 +50,13 @@ class DataExplorer extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('apiDocs')
+                ->label('API Docs')
+                ->icon('heroicon-o-book-open')
+                ->color('info')
+                ->url(fn () => route('filament.admin.pages.api-documentation', ['model' => $this->tableId]))
+                ->openUrlInNewTab()
+                ->visible(fn () => $this->tableId !== null),
             Action::make('toggleSpreadsheet')
                 ->label($this->isSpreadsheet ? 'Standard View' : 'Spreadsheet View')
                 ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
