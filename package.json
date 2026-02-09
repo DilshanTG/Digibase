@@ -24,6 +24,7 @@
         "@univerjs/icons": "^1.1.1",
         "@univerjs/sheets": "^0.15.4",
         "@univerjs/sheets-formula": "^0.15.4",
+        "@univerjs/sheets-numfmt": "^0.15.4",
         "@univerjs/sheets-ui": "^0.15.4",
         "@univerjs/ui": "^0.15.4",
         "clsx": "^2.1.1",

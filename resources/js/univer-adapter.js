@@ -1,5 +1,14 @@
 console.log("📍 Univer Adapter Module starting execution...");
 
+/**
+ * 🎨 UNIVERSAL STYLES (Crucial for the Grid)
+ * We import all available CSS and rely on Vite to bundle them.
+ */
+import "@univerjs/design/lib/index.css";
+import "@univerjs/ui/lib/index.css";
+import "@univerjs/docs-ui/lib/index.css";
+import "@univerjs/sheets-ui/lib/index.css";
+
 import {
     Univer,
     LocaleType,
@@ -13,16 +22,11 @@ import { UniverUIPlugin } from "@univerjs/ui";
 import { UniverSheetsPlugin } from "@univerjs/sheets";
 import { UniverSheetsUIPlugin } from "@univerjs/sheets-ui";
 import { UniverSheetsFormulaPlugin } from "@univerjs/sheets-formula";
+import { UniverSheetsNumfmtPlugin } from "@univerjs/sheets-numfmt";
 import { UniverDocsPlugin } from "@univerjs/docs";
 import { UniverDocsUIPlugin } from "@univerjs/docs-ui";
 
-// Import Styles
-import "@univerjs/design/lib/index.css";
-import "@univerjs/ui/lib/index.css";
-import "@univerjs/docs-ui/lib/index.css";
-import "@univerjs/sheets-ui/lib/index.css";
-
-// Import Locales (Fixed: Removed invalid engine-formula locale path)
+// Import Locales
 import enUS from "@univerjs/design/lib/locale/en-US";
 import uiEnUS from "@univerjs/ui/lib/locale/en-US";
 import docsUIEnUS from "@univerjs/docs-ui/lib/locale/en-US";
@@ -56,7 +60,7 @@ window.initUniverInstance = function (containerId, options = {}) {
         univer.registerPlugin(UniverRenderEnginePlugin);
         univer.registerPlugin(UniverFormulaEnginePlugin);
 
-        // UI Plugin - Order matters!
+        // UI Plugin
         univer.registerPlugin(UniverUIPlugin, {
             container: containerId,
             header: true,
@@ -64,14 +68,15 @@ window.initUniverInstance = function (containerId, options = {}) {
             footer: true,
         });
 
-        // Core Docs (Required for rich text & cell editing)
+        // Shared plugins
         univer.registerPlugin(UniverDocsPlugin);
         univer.registerPlugin(UniverDocsUIPlugin);
 
-        // Sheets Engine & UI
+        // Sheet specific plugins
         univer.registerPlugin(UniverSheetsPlugin);
         univer.registerPlugin(UniverSheetsUIPlugin);
         univer.registerPlugin(UniverSheetsFormulaPlugin);
+        univer.registerPlugin(UniverSheetsNumfmtPlugin); // Added numfmt
 
         // 3. Prepare Data
         const cellData = convertLaravelToUniver(schema, records);
@@ -88,14 +93,14 @@ window.initUniverInstance = function (containerId, options = {}) {
                     rowCount: Math.max(records.length + 50, 100),
                     columnCount: Math.max(schema.length + 10, 26),
                     columnData: schema.reduce((acc, col, i) => {
-                        acc[i] = { w: 180 }; // Better default width
+                        acc[i] = { w: 180 };
                         return acc;
                     }, {})
                 }
             }
         });
 
-        // 5. Setup Auto-Save via CommandService
+        // 5. Setup Auto-Save
         const commandService = univer.__getInjector().get(ICommandService);
 
         let isSaving = false;
@@ -119,7 +124,7 @@ function convertLaravelToUniver(schema, records) {
     const cellData = {};
     const columns = schema.map(f => ({ key: f.name, title: f.label || f.name }));
 
-    // Header Row (Row 0)
+    // Header
     cellData[0] = {};
     columns.forEach((col, i) => {
         cellData[0][i] = {
@@ -128,14 +133,14 @@ function convertLaravelToUniver(schema, records) {
                 bl: 1,
                 fs: 11,
                 cl: { rgb: '#FFFFFF' },
-                bg: { rgb: '#4f46e5' }, // Modern Indigo
-                ht: 2, // Center align
-                vt: 2  // Middle align
+                bg: { rgb: '#4f46e5' },
+                ht: 2,
+                vt: 2
             }
         };
     });
 
-    // Content Rows
+    // Content
     records.forEach((record, rowIndex) => {
         const r = rowIndex + 1;
         cellData[r] = {};
@@ -145,8 +150,8 @@ function convertLaravelToUniver(schema, records) {
                 v: val !== null && val !== undefined ? String(val) : '',
                 s: {
                     fs: 10,
-                    ht: 1, // Left align
-                    vt: 2  // Middle align
+                    ht: 1,
+                    vt: 2
                 }
             };
         });
@@ -164,7 +169,7 @@ async function handleUpdate(params, schema, records, tableName, apiToken, getIsS
 
     for (const r in cellValue) {
         const rowIndex = parseInt(r);
-        if (rowIndex === 0) continue; // Don't save header changes
+        if (rowIndex === 0) continue;
 
         const record = records[rowIndex - 1];
         if (!record || !record.id) continue;
@@ -177,7 +182,7 @@ async function handleUpdate(params, schema, records, tableName, apiToken, getIsS
             if (!columns[colIndex]) continue;
 
             const colKey = columns[colIndex].key;
-            updates[colKey] = rowChanges[colIndex].v;
+            updates[colKey] = rowChanges[c].v;
         }
 
         if (Object.keys(updates).length > 0 && !getIsSaving()) {
