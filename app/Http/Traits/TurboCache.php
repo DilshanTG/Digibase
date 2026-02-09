@@ -57,8 +57,17 @@ trait TurboCache
             'per_page',     // Items per page
             'sort',         // Sort column
             'order',        // Sort direction
+            'direction',    // Sort direction (actual param used in controller)
             'filter',       // Filters
         ]);
+
+        // Include auth context so RLS-filtered results aren't shared across users
+        $authId = auth('sanctum')->id() ?? 'anon';
+        $params['_auth'] = $authId;
+
+        // Include API key ID so different keys with different scopes get different caches
+        $apiKey = $request->attributes->get('api_key');
+        $params['_key'] = $apiKey?->id ?? 'none';
 
         // Sort params for consistent key generation
         ksort($params);

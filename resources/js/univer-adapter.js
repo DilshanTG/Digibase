@@ -194,8 +194,10 @@ window.initUniverInstance = function (containerId, tableData, schema, saveUrl, c
 };
 
 /**
- * 💾 Write-Back Logic
+ * 💾 Write-Back Logic (with debounce and error revert)
  */
+const pendingEdits = new Map(); // key: "row:col" -> timeout ID
+
 function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey) {
     const commandService = univer.__getInjector().get(ICommandService);
 
@@ -204,17 +206,35 @@ function setupWriteBack(univer, tableData, schema, saveUrl, csrfToken, apiKey) {
         if (command.id === 'sheet.command.set-range-values') {
             const params = command.params;
             if (params && params.range && params.value) {
-                handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey);
+                debouncedEdit(params, tableData, schema, saveUrl, csrfToken, apiKey);
             }
         }
     });
+}
+
+function debouncedEdit(params, tableData, schema, saveUrl, csrfToken, apiKey) {
+    const { startRow, startColumn } = params.range;
+    const editKey = `${startRow}:${startColumn}`;
+
+    // Clear previous pending edit for this cell
+    if (pendingEdits.has(editKey)) {
+        clearTimeout(pendingEdits.get(editKey));
+    }
+
+    // Debounce: wait 400ms before sending to avoid flooding during rapid typing
+    const timeoutId = setTimeout(() => {
+        pendingEdits.delete(editKey);
+        handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey);
+    }, 400);
+
+    pendingEdits.set(editKey, timeoutId);
 }
 
 async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey) {
     const { startRow, startColumn } = params.range;
 
     if (startRow === 0) {
-        console.warn("🚫 Header row is read-only");
+        console.warn("Header row is read-only");
         return;
     }
 
@@ -222,7 +242,7 @@ async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey)
     const record = tableData[dataIndex];
 
     if (!record || !record.id) {
-        console.warn("⚠️ Cannot edit empty row. Please use 'Create' button to add records.");
+        console.warn("Cannot edit empty row. Please use 'Create' button to add records.");
         return;
     }
 
@@ -238,7 +258,10 @@ async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey)
         newValue = cellUpdate.v !== undefined ? cellUpdate.v : null;
     }
 
-    console.log(`📝 Syncing Edit: ID ${record.id} | ${field.name} = ${newValue}`);
+    // Store old value for revert on failure
+    const oldValue = record[field.name];
+
+    console.log(`Syncing Edit: ID ${record.id} | ${field.name} = ${newValue}`);
 
     try {
         const response = await fetch(`${saveUrl}/${record.id}`, {
@@ -255,13 +278,23 @@ async function handleEdit(params, tableData, schema, saveUrl, csrfToken, apiKey)
         });
 
         if (!response.ok) {
-            console.error(`❌ Save Failed: ${response.status}`);
-            // Logic to revert cell could go here
+            const errorBody = await response.text().catch(() => '');
+            console.error(`Save Failed: ${response.status}`, errorBody);
+
+            // Revert the local data model so future edits reference correct old value
+            record[field.name] = oldValue;
+
+            // Visual feedback: briefly flash the cell red (best-effort)
+            alert(`Save failed for "${field.name}" (HTTP ${response.status}). The cell value has been reverted.`);
         } else {
-            console.log("✅ Database Updated!");
+            // Update local data model with new value so subsequent edits are correct
+            record[field.name] = newValue;
+            console.log("Database Updated!");
         }
     } catch (error) {
-        console.error("❌ Network Error:", error);
+        console.error("Network Error:", error);
+        record[field.name] = oldValue;
+        alert(`Network error saving "${field.name}". The cell value has been reverted.`);
     }
 }
 

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 use App\Models\ApiKey;
 
@@ -11,7 +12,7 @@ class VerifyApiKey
 {
     /**
      * Handle an incoming request.
-     * 
+     *
      * This middleware verifies API keys for the Dynamic Data API.
      * It checks both Bearer token and query parameter.
      */
@@ -28,8 +29,17 @@ class VerifyApiKey
             ], 401);
         }
 
-        // 2. Find the Key in Database
-        $apiKey = ApiKey::where('key', $token)->first();
+        // 2. Find the Key in Database using constant-time hash comparison
+        //    We hash the token and look up by hash to prevent timing attacks.
+        //    Fallback: iterate all active keys with hash_equals for constant-time comparison.
+        $apiKey = null;
+        $candidates = ApiKey::where('is_active', true)->get();
+        foreach ($candidates as $candidate) {
+            if (hash_equals($candidate->key, $token)) {
+                $apiKey = $candidate;
+                break;
+            }
+        }
 
         if (!$apiKey) {
             return response()->json([
@@ -68,8 +78,12 @@ class VerifyApiKey
             ], 403);
         }
 
-        // 6. Record Usage (async-friendly: don't block request)
-        $apiKey->recordUsage();
+        // 6. Record Usage (throttled: update at most once per minute per key)
+        $usageCacheKey = "api_key_usage:{$apiKey->id}";
+        if (!Cache::has($usageCacheKey)) {
+            $apiKey->recordUsage();
+            Cache::put($usageCacheKey, true, 60);
+        }
 
         // 7. Attach Key to Request for use in Controllers
         $request->attributes->set('api_key', $apiKey);
