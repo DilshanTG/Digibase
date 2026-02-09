@@ -2,7 +2,6 @@ console.log("📍 Univer Adapter Module starting execution...");
 
 /**
  * 🎨 UNIVERSAL STYLES (Crucial for the Grid)
- * We import all available CSS and rely on Vite to bundle them.
  */
 import "@univerjs/design/lib/index.css";
 import "@univerjs/ui/lib/index.css";
@@ -16,6 +15,7 @@ import {
     ICommandService,
     Tools
 } from "@univerjs/core";
+import { defaultTheme } from "@univerjs/design";
 import { UniverRenderEnginePlugin } from "@univerjs/engine-render";
 import { UniverFormulaEnginePlugin } from "@univerjs/engine-formula";
 import { UniverUIPlugin } from "@univerjs/ui";
@@ -34,6 +34,57 @@ import sheetsEnUS from "@univerjs/sheets/lib/locale/en-US";
 import sheetsUIEnUS from "@univerjs/sheets-ui/lib/locale/en-US";
 
 /**
+ * 🔄 The Translator: Converts Laravel JSON -> Univer Grid Data
+ */
+function convertToUniverData(dbData, schema) {
+    const cellData = {};
+    const columnCount = schema.length;
+    const rowCount = dbData.length + 1; // +1 for Header
+
+    // 1. Create Headers (Row 0)
+    schema.forEach((field, colIndex) => {
+        if (!cellData[0]) cellData[0] = {};
+
+        cellData[0][colIndex] = {
+            v: field.name.toUpperCase(),
+            t: 1, // Type: String
+            s: {
+                bl: 1, // Bold
+                bg: { rgb: '#e2e8f0' }, // Slate-200
+                ht: 2, // Center
+                vt: 2  // Middle
+            }
+        };
+    });
+
+    // 2. Map Data Rows (Row 1 to N)
+    dbData.forEach((record, dataIndex) => {
+        const rowIndex = dataIndex + 1;
+        if (!cellData[rowIndex]) cellData[rowIndex] = {};
+
+        schema.forEach((field, colIndex) => {
+            let value = record[field.name];
+            if (value === null || value === undefined) value = "";
+
+            cellData[rowIndex][colIndex] = {
+                v: String(value),
+                t: 1,
+                s: {
+                    ht: 1, // Left
+                    vt: 2  // Middle
+                }
+            };
+        });
+    });
+
+    return {
+        cellData,
+        rowCount: Math.max(rowCount, 100),
+        columnCount: Math.max(columnCount, 26)
+    };
+}
+
+/**
  * Global Initialization Function
  */
 window.initUniverInstance = function (containerId, options = {}) {
@@ -42,8 +93,9 @@ window.initUniverInstance = function (containerId, options = {}) {
     const { tableName, apiToken, schema, records } = options;
 
     try {
-        // 1. Initialize Univer with Locales
+        // 1. Initialize Univer with Locales & Theme
         const univer = new Univer({
+            theme: defaultTheme,
             locale: LocaleType.EN_US,
             locales: {
                 [LocaleType.EN_US]: Tools.deepMerge(
@@ -60,7 +112,6 @@ window.initUniverInstance = function (containerId, options = {}) {
         univer.registerPlugin(UniverRenderEnginePlugin);
         univer.registerPlugin(UniverFormulaEnginePlugin);
 
-        // UI Plugin
         univer.registerPlugin(UniverUIPlugin, {
             container: containerId,
             header: true,
@@ -68,18 +119,15 @@ window.initUniverInstance = function (containerId, options = {}) {
             footer: true,
         });
 
-        // Shared plugins
         univer.registerPlugin(UniverDocsPlugin);
         univer.registerPlugin(UniverDocsUIPlugin);
-
-        // Sheet specific plugins
         univer.registerPlugin(UniverSheetsPlugin);
         univer.registerPlugin(UniverSheetsUIPlugin);
         univer.registerPlugin(UniverSheetsFormulaPlugin);
-        univer.registerPlugin(UniverSheetsNumfmtPlugin); // Added numfmt
+        univer.registerPlugin(UniverSheetsNumfmtPlugin);
 
-        // 3. Prepare Data
-        const cellData = convertLaravelToUniver(schema, records);
+        // 3. Prepare Data using the Translator
+        const { cellData, rowCount, columnCount } = convertToUniverData(records, schema);
 
         // 4. Create Workbook
         const workbook = univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
@@ -90,8 +138,8 @@ window.initUniverInstance = function (containerId, options = {}) {
                     id: 'sheet-01',
                     name: 'Data',
                     cellData: cellData,
-                    rowCount: Math.max(records.length + 50, 100),
-                    columnCount: Math.max(schema.length + 10, 26),
+                    rowCount: rowCount,
+                    columnCount: columnCount,
                     columnData: schema.reduce((acc, col, i) => {
                         acc[i] = { w: 180 };
                         return acc;
@@ -116,49 +164,6 @@ window.initUniverInstance = function (containerId, options = {}) {
         console.error("🔥 Univer Engine Exception:", err);
     }
 };
-
-/**
- * Mapping Helper
- */
-function convertLaravelToUniver(schema, records) {
-    const cellData = {};
-    const columns = schema.map(f => ({ key: f.name, title: f.label || f.name }));
-
-    // Header
-    cellData[0] = {};
-    columns.forEach((col, i) => {
-        cellData[0][i] = {
-            v: col.title,
-            s: {
-                bl: 1,
-                fs: 11,
-                cl: { rgb: '#FFFFFF' },
-                bg: { rgb: '#4f46e5' },
-                ht: 2,
-                vt: 2
-            }
-        };
-    });
-
-    // Content
-    records.forEach((record, rowIndex) => {
-        const r = rowIndex + 1;
-        cellData[r] = {};
-        columns.forEach((col, colIndex) => {
-            const val = record[col.key];
-            cellData[r][colIndex] = {
-                v: val !== null && val !== undefined ? String(val) : '',
-                s: {
-                    fs: 10,
-                    ht: 1,
-                    vt: 2
-                }
-            };
-        });
-    });
-
-    return cellData;
-}
 
 /**
  * Save Handler
