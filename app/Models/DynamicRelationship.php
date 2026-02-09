@@ -18,6 +18,7 @@ class DynamicRelationship extends Model
         'foreign_key',
         'local_key',
         'pivot_table',
+        'method_name', // 👈 THIS WAS MISSING (Crucial Fix)
         'settings',
     ];
 

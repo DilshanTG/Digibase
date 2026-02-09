@@ -19,11 +19,13 @@ use App\Models\DynamicRecord;
 class DynamicDataController extends Controller
 {
     /**
-     * Get the dynamic model by table name.
+     * Get the dynamic model by name (slug) OR table_name.
      */
     protected function getModel(string $tableName): ?DynamicModel
     {
-        return DynamicModel::where('table_name', $tableName)
+        return DynamicModel::where(function($q) use ($tableName) {
+                $q->where('name', $tableName)->orWhere('table_name', $tableName);
+            })
             ->where('is_active', true)
             ->where('generate_api', true)
             ->with('fields')
@@ -53,97 +55,49 @@ class DynamicDataController extends Controller
     }
 
     /**
-     * Validate an RLS rule expression safely (NO eval()!)
-     *
-     * Supported expressions:
-     * - null/empty = Deny (Admin Only)
-     * - 'true' = Allow everyone
-     * - 'false' = Deny everyone
-     * - 'auth.id != null' = Authenticated users only
-     * - 'auth.id == user_id' = Owner only (record's user_id matches auth user)
-     * - 'auth.id == {field_name}' = Dynamic field ownership check
-     *
-     * @param string|null $rule The rule expression
-     * @param object|null $record The record being accessed (for ownership checks)
-     * @return bool Whether access is allowed
+     * Validate an RLS rule expression safely.
      */
     protected function validateRule(?string $rule, ?object $record = null): bool
     {
-        // Empty/null rule = Admin only (deny API access)
-        if (empty($rule)) {
-            return false;
-        }
-
+        if (empty($rule)) return false; // Default deny
+        
         $rule = trim(strtolower($rule));
+        if ($rule === 'true') return true;
+        if ($rule === 'false') return false;
 
-        // Literal true/false
-        if ($rule === 'true') {
-            return true;
-        }
-        if ($rule === 'false') {
-            return false;
-        }
-
-        // Get authenticated user ID (via Sanctum)
         $authId = auth('sanctum')->id();
 
-        // Parse the expression safely
-        // Replace auth.id with actual value or 'null' string
-        $authIdStr = $authId !== null ? (string) $authId : 'null';
-
-        // Handle "auth.id != null" (Authenticated users)
+        // Check for basic auth requirement
         if ($rule === 'auth.id != null' || $rule === 'auth.id !== null') {
             return $authId !== null;
         }
-
-        // Handle "auth.id == null" (Unauthenticated users only)
         if ($rule === 'auth.id == null' || $rule === 'auth.id === null') {
             return $authId === null;
         }
 
-        // Handle ownership checks like "auth.id == user_id"
-        if (preg_match('/^auth\.id\s*(==|===|!=|!==)\s*(\w+)$/', $rule, $matches)) {
-            $operator = $matches[1];
-            $fieldName = $matches[2];
+        // Simple ownership check regex
+        if (preg_match('/^auth\.id\s*(==|!=|===|!==)\s*(\w+)$/', $rule, $matches)) {
+            $op = $matches[1];
+            $field = $matches[2];
+            
+            if (!$record) return $authId !== null;
 
-            // Skip if the field is 'null' (handled above)
-            if ($fieldName === 'null') {
-                return false;
-            }
-
-            // We need a record to check ownership
-            if (!$record) {
-                // For list/create operations without a specific record,
-                // we can't check ownership, so check if user is authenticated
-                return $authId !== null;
-            }
-
-            // Get the field value from the record
-            $fieldValue = null;
-            if (is_object($record)) {
-                $fieldValue = $record->{$fieldName} ?? null;
-            } elseif (is_array($record)) {
-                $fieldValue = $record[$fieldName] ?? null;
-            }
-
-            // Perform the comparison
-            switch ($operator) {
-                case '==':
-                case '===':
-                    return $authId !== null && (string) $authId === (string) $fieldValue;
-                case '!=':
-                case '!==':
-                    return $authId !== null && (string) $authId !== (string) $fieldValue;
-            }
+            $val = is_object($record) ? ($record->$field ?? null) : ($record[$field] ?? null);
+            
+            return match($op) {
+                '==' => (string)$authId === (string)$val,
+                '===' => (string)$authId === (string)$val,
+                '!=' => (string)$authId !== (string)$val,
+                '!==' => (string)$authId !== (string)$val,
+                default => false,
+            };
         }
 
-        // Handle compound expressions with && or ||
+        // Handle compound expressions
         if (str_contains($rule, '&&')) {
             $parts = array_map('trim', explode('&&', $rule));
             foreach ($parts as $part) {
-                if (!$this->validateRule($part, $record)) {
-                    return false;
-                }
+                if (!$this->validateRule($part, $record)) return false;
             }
             return true;
         }
@@ -151,38 +105,28 @@ class DynamicDataController extends Controller
         if (str_contains($rule, '||')) {
             $parts = array_map('trim', explode('||', $rule));
             foreach ($parts as $part) {
-                if ($this->validateRule($part, $record)) {
-                    return true;
-                }
+                if ($this->validateRule($part, $record)) return true;
             }
             return false;
         }
 
-        // Unknown expression = deny for safety
         return false;
     }
 
     /**
      * Trigger webhooks for a dynamic model event.
-     * 
-     * @param int $modelId The dynamic_model_id
-     * @param string $event One of: 'created', 'updated', 'deleted'
-     * @param array $data The payload to send
      */
     protected function triggerWebhooks(int $modelId, string $event, array $data): void
     {
-        // Find all active webhooks for this model
         $webhooks = Webhook::where('dynamic_model_id', $modelId)
             ->where('is_active', true)
             ->get();
 
         foreach ($webhooks as $webhook) {
-            // Check if this webhook should trigger for this event
             if (!$webhook->shouldTrigger($event)) {
                 continue;
             }
 
-            // Filter sensitive data
             $recordData = $data['record'] ?? $data;
             if (is_array($recordData)) {
                 $sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'remember_token'];
@@ -198,7 +142,6 @@ class DynamicDataController extends Controller
                 }
             }
 
-            // Build the payload
             $payload = [
                 'event' => $event,
                 'table' => $data['table'] ?? null,
@@ -206,25 +149,21 @@ class DynamicDataController extends Controller
                 'timestamp' => now()->toIso8601String(),
             ];
 
-            // Build headers
             $headers = [
                 'Content-Type' => 'application/json',
                 'User-Agent' => 'Digibase-Webhook/1.0',
                 'X-Webhook-Event' => $event,
             ];
 
-            // Add HMAC signature if secret is set
             $signature = $webhook->generateSignature($payload);
             if ($signature) {
                 $headers['X-Webhook-Signature'] = 'sha256=' . $signature;
             }
 
-            // Add custom headers
             if (!empty($webhook->headers)) {
                 $headers = array_merge($headers, $webhook->headers);
             }
 
-            // Send webhook asynchronously (fire and forget)
             try {
                 Http::timeout(10)
                     ->withHeaders($headers)
@@ -250,7 +189,6 @@ class DynamicDataController extends Controller
                         }
                     );
             } catch (\Exception $e) {
-                // Log but don't fail the main request
                 Log::error("Webhook dispatch error: {$webhook->url}", [
                     'error' => $e->getMessage(),
                 ]);
@@ -275,7 +213,6 @@ class DynamicDataController extends Controller
                 $fieldRules[] = 'nullable';
             }
 
-            // Type-based validation
             switch ($field->type) {
                 case 'string':
                 case 'slug':
@@ -325,8 +262,8 @@ class DynamicDataController extends Controller
                     break;
             }
 
-            // Unique validation
             if ($field->is_unique) {
+                // Use actual table name for unique check
                 $fieldRules[] = 'unique:' . $model->table_name . ',' . $field->name;
             }
 
@@ -341,30 +278,30 @@ class DynamicDataController extends Controller
      */
     public function index(Request $request, string $tableName): JsonResponse
     {
+        // Smart Lookup
         $model = $this->getModel($tableName);
 
         if (!$model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        // RLS: Check list_rule
         if (!$this->validateRule($model->list_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
+        
+        // Use actual table name
+        $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        // Initialize Eloquent Query on DynamicRecord
         $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
-        // Filter out soft-deleted records
         if ($model->has_soft_deletes) {
             $query->whereNull('deleted_at');
         }
 
-        // RLS: Apply ownership filter for list queries (e.g. "auth.id == user_id")
         $ownershipField = $this->extractOwnershipField($model->list_rule);
         if ($ownershipField) {
             $authId = auth('sanctum')->id();
@@ -376,47 +313,53 @@ class DynamicDataController extends Controller
             $includes = explode(',', $request->get('include'));
             foreach ($includes as $include) {
                 $relationName = trim($include);
+                
+                // Lookup by method_name
                 $relDef = $model->relationships()->where('name', $relationName)->first();
 
                 if ($relDef && $relDef->relatedModel) {
                      DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
                         $relatedTable = $relDef->relatedModel->table_name;
-
                         $foreignKey = $relDef->foreign_key;
                         $localKey = $relDef->local_key ?? 'id';
                         
+                        $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
+
                         if ($relDef->type === 'hasMany') {
                             $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            // Fix: Qualify FK with Related Table
+                            $foreignKey = $qualify($foreignKey, $relatedTable);
                             
                             $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
-
-                        } elseif ($relDef->type === 'hasOne') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            
-                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-
-                        } elseif ($relDef->type === 'belongsTo') {
+                        } 
+                        elseif ($relDef->type === 'belongsTo') {
                             $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-                            // For belongsTo, localKey is the owner key (id on related table)
-                            
+                            // No qualification for BelongsTo localKey
+
                             $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
                         }
+                        elseif ($relDef->type === 'hasOne') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            $foreignKey = $qualify($foreignKey, $relatedTable);
+
+                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
+                            $relation->getRelated()->setTable($relatedTable);
+                            $relation->getQuery()->from($relatedTable);
+                            return $relation;
+                        }
+                        return null; 
                      });
                      $query->with($relationName);
                 }
             }
         }
 
-        // Search (Optimized: only search in 'is_searchable' fields)
         if ($request->has('search') && $request->search) {
             $searchTerm = $request->search;
             $searchableFields = $model->fields->where('is_searchable', true)->pluck('name')->toArray();
@@ -430,14 +373,12 @@ class DynamicDataController extends Controller
             }
         }
 
-        // Filters
         foreach ($model->fields->where('is_filterable', true) as $field) {
             if ($request->has($field->name) && $request->input($field->name) !== null) {
                 $query->where($field->name, $request->input($field->name));
             }
         }
 
-        // Sorting
         $sortField = $request->get('sort', 'id');
         $sortDirection = $request->get('direction', 'desc');
         $sortableFields = $model->fields->where('is_sortable', true)->pluck('name')->toArray();
@@ -449,14 +390,14 @@ class DynamicDataController extends Controller
             $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
         }
 
-        // Pagination
         $perPage = min($request->get('per_page', 15), 100);
         $data = $query->paginate($perPage);
 
-        // Hide sensitive fields
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         $data->getCollection()->each(function ($item) use ($hiddenFields) {
-            $item->makeHidden($hiddenFields);
+            if (property_exists($item, 'makeHidden')) {
+                $item->makeHidden($hiddenFields);
+            }
         });
 
         return response()->json([
@@ -481,13 +422,14 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
+        $tableName = $model->table_name;
+
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
         $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
-        // Filter out soft-deleted records
         if ($model->has_soft_deletes) {
             $query->whereNull('deleted_at');
         }
@@ -501,30 +443,30 @@ class DynamicDataController extends Controller
                 if ($relDef && $relDef->relatedModel) {
                      DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
                         $relatedTable = $relDef->relatedModel->table_name;
-
                         $foreignKey = $relDef->foreign_key;
                         $localKey = $relDef->local_key ?? 'id';
+                        $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
 
                         if ($relDef->type === 'hasMany') {
                             $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            $foreignKey = $qualify($foreignKey, $relatedTable);
 
                             $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
-
-                        } elseif ($relDef->type === 'hasOne') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-
-                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
+                        } elseif ($relDef->type === 'belongsTo') {
+                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
+                            
+                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
+                        } elseif ($relDef->type === 'hasOne') {
+                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                            $foreignKey = $qualify($foreignKey, $relatedTable);
 
-                        } elseif ($relDef->type === 'belongsTo') {
-                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-
-                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
+                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
@@ -541,12 +483,10 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Record not found'], 404);
         }
 
-        // RLS: Check view_rule with record context
         if (!$this->validateRule($model->view_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
-        // Hide sensitive fields
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         $record->makeHidden($hiddenFields);
 
@@ -564,16 +504,16 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        // RLS: Check create_rule
         if (!$this->validateRule($model->create_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
+        
+        $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        // Validate input
         $rules = $this->buildValidationRules($model);
         $validator = Validator::make($request->all(), $rules);
 
@@ -584,18 +524,15 @@ class DynamicDataController extends Controller
             ], 422);
         }
 
-        // Prepare data
         $data = [];
         foreach ($model->fields as $field) {
             if ($request->has($field->name)) {
                 $value = $request->input($field->name);
 
-                // Handle JSON fields
                 if ($field->type === 'json' && is_array($value)) {
                     $value = json_encode($value);
                 }
 
-                // Handle boolean fields
                 if ($field->type === 'boolean') {
                     $value = (bool) $value;
                 }
@@ -606,19 +543,17 @@ class DynamicDataController extends Controller
             }
         }
 
-        // Add timestamps if enabled
         if ($model->has_timestamps) {
             $data['created_at'] = now();
             $data['updated_at'] = now();
         }
 
         $id = DB::table($tableName)->insertGetId($data);
+        // Use actual table name for retrieval
         $record = DB::table($tableName)->where('id', $id)->first();
 
-        // Broadcast Activity
         event(new ModelActivity('created', $model->name, $record, $request->user()));
 
-        // Trigger webhooks
         $this->triggerWebhooks($model->id, 'created', [
             'table' => $tableName,
             'record' => (array) $record,
@@ -637,6 +572,8 @@ class DynamicDataController extends Controller
         if (!$model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
+        
+        $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
@@ -648,12 +585,10 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Record not found'], 404);
         }
 
-        // RLS: Check update_rule with record context
         if (!$this->validateRule($model->update_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
-        // Validate input (update mode)
         $rules = $this->buildValidationRules($model, true);
 
         // Modify unique rules to ignore current record
@@ -674,7 +609,6 @@ class DynamicDataController extends Controller
             ], 422);
         }
 
-        // Prepare data
         $data = [];
         foreach ($model->fields as $field) {
             if ($request->has($field->name)) {
@@ -692,7 +626,6 @@ class DynamicDataController extends Controller
             }
         }
 
-        // Update timestamp if enabled
         if ($model->has_timestamps && !empty($data)) {
             $data['updated_at'] = now();
         }
@@ -703,10 +636,8 @@ class DynamicDataController extends Controller
 
         $record = DB::table($tableName)->where('id', $id)->first();
 
-        // Broadcast Activity
         event(new ModelActivity('updated', $model->name, $record, $request->user()));
 
-        // Trigger webhooks
         $this->triggerWebhooks($model->id, 'updated', [
             'table' => $tableName,
             'record' => (array) $record,
@@ -725,6 +656,8 @@ class DynamicDataController extends Controller
         if (!$model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
+        
+        $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
@@ -736,15 +669,12 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Record not found'], 404);
         }
 
-        // RLS: Check delete_rule with record context
         if (!$this->validateRule($model->delete_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
-        // Capture record data before deletion for webhook
         $recordData = (array) $record;
 
-        // Handle soft deletes
         if ($model->has_soft_deletes) {
             DB::table($tableName)->where('id', $id)->update([
                 'deleted_at' => now(),
@@ -753,10 +683,8 @@ class DynamicDataController extends Controller
             DB::table($tableName)->where('id', $id)->delete();
         }
 
-        // Broadcast Activity
         event(new ModelActivity('deleted', $model->name, ['id' => $id], $request->user()));
 
-        // Trigger webhooks
         $this->triggerWebhooks($model->id, 'deleted', [
             'table' => $tableName,
             'record' => $recordData,
@@ -776,7 +704,6 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        // RLS: Schema access follows list_rule (if you can list, you can see schema)
         if (!$this->validateRule($model->list_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
@@ -802,6 +729,7 @@ class DynamicDataController extends Controller
                     'is_sortable' => $field->is_sortable,
                     'default_value' => $field->default_value,
                     'options' => $field->options,
+                    'is_hidden' => $field->is_hidden ?? false,
                 ];
             }),
             'endpoints' => [

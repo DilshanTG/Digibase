@@ -137,42 +137,7 @@ class DynamicModelResource extends Resource
                                     ->defaultItems(1)
                             ]),
 
-                        Tabs\Tab::make('Relationships')
-                            ->icon('heroicon-o-link')
-                            ->schema([
-                                Forms\Components\Repeater::make('relationships')
-                                    ->relationship('relationships')
-                                    ->schema([
-                                        Forms\Components\Select::make('type')
-                                            ->label('Relationship Type')
-                                            ->options([
-                                                'hasOne' => 'Has One',
-                                                'hasMany' => 'Has Many',
-                                                'belongsTo' => 'Belongs To',
-                                            ])
-                                            ->required()
-                                            ->live(),
 
-                                        Forms\Components\TextInput::make('name')
-                                            ->label('Method Name')
-                                            ->required()
-                                            ->placeholder('e.g. posts, author'),
-
-                                        Forms\Components\Select::make('related_model_id')
-                                            ->label('Related Table')
-                                            ->options(\App\Models\DynamicModel::pluck('display_name', 'id'))
-                                            ->required()
-                                            ->searchable(),
-
-                                        Forms\Components\TextInput::make('foreign_key')
-                                            ->label('Foreign Key (Optional)')
-                                            ->placeholder('Auto-detected (e.g. user_id)'),
-                                    ])
-                                    ->columns(2)
-                                    ->addActionLabel('Add Relationship')
-                                    ->grid(1)
-                                    ->defaultItems(0)
-                            ]),
 
                         Tabs\Tab::make('Advanced')
                             ->icon('heroicon-o-code-bracket')

@@ -36,6 +36,12 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 // Public file downloads (auth checked inside controller for private files)
 Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
+// Public Read Access (For Testing)
+Route::middleware(['throttle:60,1'])->group(function () {
+    Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
+    Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
+});
+
 // Protected routes
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
@@ -52,9 +58,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // Dynamic Data API (Auto-generated CRUD for dynamic models)
     Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
-    Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
     Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
-    Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
     Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
 

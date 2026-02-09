@@ -8,11 +8,11 @@ use Filament\Tables\Table;
 use App\Models\DynamicModel;
 use Filament\Schemas\Schema;
 
-// 👇 CORRECTED IMPORTS: Use Filament\Actions namespace
+// 👇 v4 COMPATIBLE IMPORTS (Matches your UserResource)
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextColumn; // Columns are still in Tables namespace
 
 class RelationshipsRelationManager extends RelationManager
 {

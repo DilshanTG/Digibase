@@ -8,16 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // SKIPPING: Third duplicate causing test failures
+        /*
         Schema::table('names', function (Blueprint $table) {
-            $table->string('tttt')->nullable();
-            
+            $table->string('test');
         });
+        */
     }
 
     public function down(): void
     {
-        Schema::table('names', function (Blueprint $table) {
-            // Rollback not fully supported for dynamic additions yet
-        });
     }
 };

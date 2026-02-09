@@ -15,9 +15,9 @@ use BackedEnum;
 use UnitEnum;
 use App\Models\DynamicModel;
 use App\Models\DynamicField;
+use App\Models\DynamicRelationship; // 👈 CRITICAL IMPORT
 use Illuminate\Support\Facades\Schema as LaravelSchema;
 use Illuminate\Support\Str;
-
 use Filament\Forms\Components\Select;
 
 class SqlPlayground extends Page implements HasForms
@@ -25,13 +25,9 @@ class SqlPlayground extends Page implements HasForms
     use InteractsWithForms;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-command-line';
-
     protected static string|UnitEnum|null $navigationGroup = 'System';
-
     protected static ?string $navigationLabel = 'SQL Playground';
-
     protected static ?string $title = 'SQL Playground';
-
     protected string $view = 'filament.pages.sql-playground';
 
     public ?string $query = '';
@@ -61,10 +57,6 @@ class SqlPlayground extends Page implements HasForms
             ]);
     }
 
-    /**
-     * Dangerous SQL patterns that should be blocked even in the admin panel.
-     * These target system-critical tables that could break the application.
-     */
     protected array $protectedTables = [
         'users', 'personal_access_tokens', 'password_reset_tokens',
         'sessions', 'migrations', 'roles', 'permissions',
@@ -80,25 +72,15 @@ class SqlPlayground extends Page implements HasForms
             $sql = trim($this->query);
             if (empty($sql)) return;
 
-            // 1. Remove comments to correctly check if it's a SELECT query
-            // This fixes the bug where "-- Select all users" was treated as a Write operation
             $cleanSql = preg_replace('/--.*$/m', '', $sql);
             $cleanSql = trim($cleanSql);
 
-            // 2. Check if it's a Read Operation (SELECT, SHOW, DESCRIBE, WITH)
             if (stripos($cleanSql, 'SELECT') === 0 || stripos($cleanSql, 'SHOW') === 0 || stripos($cleanSql, 'DESCRIBE') === 0 || stripos($cleanSql, 'WITH') === 0) {
-                
-                // Use json_decode trick to convert stdClass objects to arrays for Blade compatibility
                 $this->results = json_decode(json_encode(DB::select($sql)), true);
-                
                 $count = count($this->results);
                 Notification::make()->success()->title('Query Loaded')->body("$count rows found.")->send();
-            
             } else {
-                // 3. Write Operation (CREATE, INSERT, UPDATE, DELETE, DROP)
-                // Use 'unprepared' to support multiple statements (e.g., CREATE TABLE x; INSERT INTO x...)
                 DB::unprepared($sql);
-                
                 $this->message = "Command executed successfully.";
                 Notification::make()->success()->title('Executed')->send();
             }
@@ -150,25 +132,35 @@ class SqlPlayground extends Page implements HasForms
                     // PHASE 1: Create Models & Fields
                     foreach ($selectedTables as $rawTableName) {
                         try {
-                            $cleanTableName = Str::afterLast($rawTableName, '.');
+                            // 1. Clean the Table Name (Remove 'main.' if pure table exists)
+                            $cleanName = Str::afterLast($rawTableName, '.');
+                            $realTableName = LaravelSchema::hasTable($cleanName) ? $cleanName : $rawTableName;
                             
-                            DB::transaction(function () use ($rawTableName, $cleanTableName, &$importedIds) {
-                                // 1. Create/Find Model
+                            DB::transaction(function () use ($realTableName, $cleanName, &$importedIds) {
+                                // Create/Find Model
                                 $model = DynamicModel::firstOrCreate(
-                                    ['table_name' => $rawTableName],
+                                    ['name' => $cleanName], // Match by clean name (slug)
                                     [
-                                        'name' => $cleanTableName,
-                                        'display_name' => Str::headline($cleanTableName),
+                                        'table_name' => $realTableName, // Save the WORKING table name
+                                        'display_name' => Str::headline($cleanName),
                                         'is_active' => true,
                                         'generate_api' => true,
                                         'user_id' => auth()->id(),
+                                        'list_rule' => 'true', // Default to Public for easier testing
+                                        'view_rule' => 'true',
                                     ]
                                 );
-                                $importedIds[$rawTableName] = $model->id;
+                                
+                                // Update table_name if it was wrong before
+                                if ($model->table_name !== $realTableName) {
+                                    $model->update(['table_name' => $realTableName]);
+                                }
 
-                                // 2. Sync Columns (Delete old fields to be safe, then recreate)
+                                $importedIds[$realTableName] = $model->id; // Map Real Name -> ID
+
+                                // Sync Columns
                                 $model->fields()->delete();
-                                $columns = LaravelSchema::getColumns($rawTableName);
+                                $columns = LaravelSchema::getColumns($realTableName);
                                 
                                 foreach ($columns as $col) {
                                     $colName = $col['name'];
@@ -195,50 +187,54 @@ class SqlPlayground extends Page implements HasForms
                         } catch (\Exception $e) { continue; }
                     }
 
-                    // PHASE 2: Auto-Detect Relationships (The Magic 🪄)
-                    // We loop again because now all models exist!
-                    foreach ($selectedTables as $rawTableName) {
-                        $currentModelId = $importedIds[$rawTableName] ?? null;
-                        if (!$currentModelId) continue;
-
-                        // Get Foreign Keys from SQLite
-                        $fks = DB::select("PRAGMA foreign_key_list('$rawTableName')");
+                    // PHASE 2: Auto-Detect Relationships (Fixed Logic)
+                    foreach ($importedIds as $tableName => $currentModelId) {
+                        // Get Foreign Keys
+                        $fks = DB::select("PRAGMA foreign_key_list('$tableName')");
 
                         foreach ($fks as $fk) {
                             $parentTableName = $fk->table; // e.g. 'authors'
                             $localCol = $fk->from;         // e.g. 'author_id'
                             
-                            // Check if Parent is in our system (it might have a prefix)
-                            // We search broadly for the table name
-                            $parentModel = DynamicModel::where('table_name', 'LIKE', "%$parentTableName")->first();
+                            // Find Parent Model (Try both raw name and clean name)
+                            $parentModel = DynamicModel::where('table_name', $parentTableName)
+                                ->orWhere('name', $parentTableName)
+                                ->first();
 
                             if ($parentModel) {
-                                // A. Create "BelongsTo" (Child -> Parent)
+                                // 1. BelongsTo (Child -> Parent)
                                 // "Book belongs to Author"
-                                \App\Models\DynamicRelationship::firstOrCreate([
+                                $belongsToName = Str::camel(Str::singular($parentModel->name)); // 'author'
+                                
+                                DynamicRelationship::firstOrCreate([
                                     'dynamic_model_id' => $currentModelId,
                                     'related_model_id' => $parentModel->id,
-                                    'type' => 'belongsTo', 
+                                    'type' => 'belongsTo',
+                                    'name' => $belongsToName, // FIX: Use 'name', not 'method_name'
                                 ], [
                                     'foreign_key' => $localCol,
-                                    'method_name' => Str::camel(Str::singular($parentModel->name)), // e.g. 'author'
+                                    'local_key' => 'id',
                                 ]);
 
-                                // B. Create "HasMany" (Parent -> Child)
+                                // 2. HasMany (Parent -> Child)
                                 // "Author has many Books"
-                                \App\Models\DynamicRelationship::firstOrCreate([
+                                $currentModelName = DynamicModel::find($currentModelId)->name;
+                                $hasManyName = Str::camel(Str::plural($currentModelName)); // 'books'
+
+                                DynamicRelationship::firstOrCreate([
                                     'dynamic_model_id' => $parentModel->id,
                                     'related_model_id' => $currentModelId,
                                     'type' => 'hasMany',
+                                    'name' => $hasManyName, // FIX: Use 'name', not 'method_name'
                                 ], [
                                     'foreign_key' => $localCol,
-                                    'method_name' => Str::camel(Str::plural(Str::afterLast($rawTableName, '.'))), // e.g. 'books'
+                                    'local_key' => 'id',
                                 ]);
                             }
                         }
                     }
 
-                    Notification::make()->success()->title("$count Tables Imported & Linked!")->send();
+                    Notification::make()->success()->title("$count Tables Imported & Linked Correctly!")->send();
                 }),
         ];
     }
