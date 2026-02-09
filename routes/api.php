@@ -37,19 +37,37 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
 // ============================================================================
-// DYNAMIC DATA API - Protected by API Key (The "Iron Dome")
+// CORE DATA API v1 - Protected by Iron Dome (API Key Middleware)
 // ============================================================================
-// Read operations: Require 'read' scope (pk_ keys work!)
-// Write operations: Require 'write' scope (sk_ keys only)
-// Delete operations: Require 'delete' scope (sk_ keys only)
+// 🛡️ Iron Dome: API key validation with scopes
+// 🩺 Schema Doctor: Dynamic validation rules
+// ⚡ Turbo Cache: Automated caching/invalidation
+// 📡 Live Wire: Real-time broadcasting via DynamicRecordObserver
+// 🔒 Transaction Wrapper: Atomic operations
+// 🎯 Type-Safe Casting: Strict type enforcement
+// 🚦 Rate Limiting: Dynamic per-key limits from api_keys table
+// ============================================================================
+Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::class])->group(function () {
+    // Read operations (pk_ or sk_ keys with 'read' scope)
+    Route::get('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'index']);
+    Route::get('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'show']);
+    Route::get('/data/{tableName}/schema', [App\Http\Controllers\Api\CoreDataController::class, 'schema']);
+    
+    // Write operations (sk_ keys only with 'write' scope)
+    Route::post('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'store']);
+    Route::put('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'update']);
+    
+    // Delete operations (sk_ keys only with 'delete' scope)
+    Route::delete('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'destroy']);
+});
+
+// ============================================================================
+// LEGACY API (Backward Compatibility) - Will be deprecated in v2
 // ============================================================================
 Route::middleware(['api.key', 'throttle:60,1'])->group(function () {
-    // Read (pk_ or sk_ keys)
     Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
     Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
     Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
-    
-    // Write (sk_ keys only - enforced by middleware scope check)
     Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
     Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
