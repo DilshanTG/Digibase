@@ -228,77 +228,254 @@ class DynamicModelResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label('Table Name')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('display_name')
-                    ->label('Display Name')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('table_name')
-                    ->label('DB Table')
-                    ->badge()
-                    ->color('gray')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(),
-
-                Tables\Columns\TextColumn::make('fields_count')
-                    ->counts('fields')
-                    ->label('Columns')
-                    ->badge()
-                    ->color('primary')
-                    ->sortable(),
-
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean()
-                    ->sortable(),
-
-                Tables\Columns\IconColumn::make('generate_api')
-                    ->label('API')
-                    ->boolean()
-                    ->sortable(),
-
-                Tables\Columns\IconColumn::make('has_timestamps')
-                    ->label('Timestamps')
-                    ->boolean()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\IconColumn::make('has_soft_deletes')
-                    ->label('Soft Delete')
-                    ->boolean()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('user.name')
-                    ->label('Owner')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime('M j, Y')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\Layout\Stack::make([
+                    Tables\Columns\Layout\Split::make([
+                        Tables\Columns\Layout\Stack::make([
+                            Tables\Columns\TextColumn::make('display_name')
+                                ->weight('bold')
+                                ->size('lg')
+                                ->searchable()
+                                ->sortable()
+                                ->icon('heroicon-o-table-cells')
+                                ->iconColor('primary'),
+                        ])->space(1),
+                        
+                        Tables\Columns\Layout\Stack::make([
+                            Tables\Columns\TextColumn::make('quick_actions')
+                                ->label('')
+                                ->formatStateUsing(fn () => '')
+                                ->extraAttributes(['class' => 'flex gap-2 justify-end']),
+                            Tables\Columns\TextColumn::make('table_name')
+                                ->badge()
+                                ->color('gray')
+                                ->icon('heroicon-o-circle-stack')
+                                ->size('sm'),
+                        ])->alignment('end')->space(1),
+                    ]),
+                    
+                    Tables\Columns\Layout\Split::make([
+                        Tables\Columns\Layout\Stack::make([
+                            Tables\Columns\TextColumn::make('stats')
+                                ->label('Statistics')
+                                ->formatStateUsing(function (DynamicModel $record) {
+                                    $recordCount = 0;
+                                    $lastActivity = null;
+                                    
+                                    try {
+                                        if (DbSchema::hasTable($record->table_name)) {
+                                            $recordCount = \DB::table($record->table_name)->count();
+                                            
+                                            if ($record->has_timestamps) {
+                                                $lastRecord = \DB::table($record->table_name)
+                                                    ->orderBy('updated_at', 'desc')
+                                                    ->first();
+                                                if ($lastRecord && isset($lastRecord->updated_at)) {
+                                                    $lastActivity = \Carbon\Carbon::parse($lastRecord->updated_at)->diffForHumans();
+                                                }
+                                            }
+                                        }
+                                    } catch (\Exception $e) {
+                                        // Table might not exist yet
+                                    }
+                                    
+                                    $stats = [];
+                                    $stats[] = "📊 {$recordCount} records";
+                                    $stats[] = "📋 {$record->fields->count()} fields";
+                                    if ($lastActivity) {
+                                        $stats[] = "🕐 Updated {$lastActivity}";
+                                    }
+                                    
+                                    return implode(' • ', $stats);
+                                })
+                                ->color('gray')
+                                ->size('sm'),
+                        ]),
+                        
+                        Tables\Columns\Layout\Stack::make([
+                            Tables\Columns\TextColumn::make('badges')
+                                ->formatStateUsing(function (DynamicModel $record) {
+                                    $badges = [];
+                                    
+                                    if ($record->is_active) {
+                                        $badges[] = '✅ Active';
+                                    } else {
+                                        $badges[] = '⏸️ Inactive';
+                                    }
+                                    
+                                    if ($record->generate_api) {
+                                        $badges[] = '🔌 API';
+                                    }
+                                    
+                                    if ($record->has_timestamps) {
+                                        $badges[] = '⏰ Timestamps';
+                                    }
+                                    
+                                    if ($record->has_soft_deletes) {
+                                        $badges[] = '🗑️ Soft Delete';
+                                    }
+                                    
+                                    return implode(' ', $badges);
+                                })
+                                ->size('xs')
+                                ->color('gray'),
+                        ])->alignment('end'),
+                    ]),
+                ])->space(2),
+            ])
+            ->contentGrid([
+                'md' => 1,
+                'xl' => 1,
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
-                    ->label('Active'),
+                    ->label('Active Status')
+                    ->placeholder('All Tables')
+                    ->trueLabel('Active Only')
+                    ->falseLabel('Inactive Only'),
+                    
                 Tables\Filters\TernaryFilter::make('generate_api')
-                    ->label('API Enabled'),
+                    ->label('API Status')
+                    ->placeholder('All Tables')
+                    ->trueLabel('API Enabled')
+                    ->falseLabel('API Disabled'),
+                    
+                Tables\Filters\SelectFilter::make('has_timestamps')
+                    ->label('Features')
+                    ->options([
+                        '1' => 'With Timestamps',
+                        '0' => 'Without Timestamps',
+                    ]),
             ])
             ->actions([
+                // Quick Actions (shown on the right side of cards)
                 Action::make('view_data')
-                    ->label('Data')
+                    ->label('View Data')
                     ->icon('heroicon-o-table-cells')
                     ->color('success')
+                    ->button()
+                    ->outlined()
                     ->url(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['tableId' => $record->id])),
+                    
+                Action::make('spreadsheet_edit')
+                    ->label('Spreadsheet')
+                    ->icon('heroicon-o-squares-2x2')
+                    ->color('warning')
+                    ->button()
+                    ->outlined()
+                    ->url(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['tableId' => $record->id, 'spreadsheet' => true]))
+                    ->tooltip('Edit data in spreadsheet view with Univer.js'),
+                    
+                Action::make('api_docs')
+                    ->label('API Docs')
+                    ->icon('heroicon-o-book-open')
+                    ->color('info')
+                    ->button()
+                    ->outlined()
+                    ->url(fn (DynamicModel $record) => \App\Filament\Pages\ApiDocumentation::getUrl(['model' => $record->id]))
+                    ->openUrlInNewTab(),
+                    
+                Action::make('json_preview')
+                    ->label('JSON Schema')
+                    ->icon('heroicon-o-code-bracket')
+                    ->color('gray')
+                    ->button()
+                    ->outlined()
+                    ->modalHeading(fn (DynamicModel $record) => $record->display_name . ' - JSON Schema')
+                    ->modalContent(function (DynamicModel $record) {
+                        $schema = [
+                            'table' => $record->table_name,
+                            'display_name' => $record->display_name,
+                            'description' => $record->description,
+                            'features' => [
+                                'timestamps' => $record->has_timestamps,
+                                'soft_deletes' => $record->has_soft_deletes,
+                                'api_enabled' => $record->generate_api,
+                            ],
+                            'fields' => $record->fields->map(function ($field) {
+                                return [
+                                    'name' => $field->name,
+                                    'type' => $field->type,
+                                    'display_name' => $field->display_name,
+                                    'required' => $field->is_required,
+                                    'unique' => $field->is_unique,
+                                    'default' => $field->default_value,
+                                    'validation' => $field->validation_rules,
+                                ];
+                            })->toArray(),
+                            'security' => [
+                                'list_rule' => $record->list_rule,
+                                'view_rule' => $record->view_rule,
+                                'create_rule' => $record->create_rule,
+                                'update_rule' => $record->update_rule,
+                                'delete_rule' => $record->delete_rule,
+                            ],
+                        ];
+                        
+                        return view('filament.components.json-preview', [
+                            'json' => json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                        ]);
+                    })
+                    ->modalWidth('4xl')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close'),
+                    
+                Action::make('export_schema')
+                    ->label('Export')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->button()
+                    ->outlined()
+                    ->action(function (DynamicModel $record) {
+                        $schema = [
+                            'table' => $record->table_name,
+                            'display_name' => $record->display_name,
+                            'description' => $record->description,
+                            'features' => [
+                                'timestamps' => $record->has_timestamps,
+                                'soft_deletes' => $record->has_soft_deletes,
+                                'api_enabled' => $record->generate_api,
+                            ],
+                            'fields' => $record->fields->map(function ($field) {
+                                return [
+                                    'name' => $field->name,
+                                    'type' => $field->type,
+                                    'display_name' => $field->display_name,
+                                    'required' => $field->is_required,
+                                    'unique' => $field->is_unique,
+                                    'default' => $field->default_value,
+                                    'validation' => $field->validation_rules,
+                                ];
+                            })->toArray(),
+                            'security' => [
+                                'list_rule' => $record->list_rule,
+                                'view_rule' => $record->view_rule,
+                                'create_rule' => $record->create_rule,
+                                'update_rule' => $record->update_rule,
+                                'delete_rule' => $record->delete_rule,
+                            ],
+                        ];
+                        
+                        $filename = 'schema-' . $record->table_name . '.json';
+                        
+                        return response()->streamDownload(function () use ($schema) {
+                            echo json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                        }, $filename, [
+                            'Content-Type' => 'application/json',
+                        ]);
+                    }),
+                    
+                // Divider
+                Action::make('divider_1')
+                    ->label('')
+                    ->disabled()
+                    ->extraAttributes(['class' => 'border-l border-gray-300 dark:border-gray-600 h-8 mx-2']),
+                
+                // Icon Actions (existing)
                 Action::make('sync_db')
-                    ->label('Sync')
                     ->icon('heroicon-o-arrow-path')
+                    ->iconButton()
+                    ->tooltip('Sync Database Schema')
                     ->color('info')
                     ->requiresConfirmation()
                     ->action(function (DynamicModel $record) {
@@ -350,12 +527,17 @@ class DynamicModelResource extends Resource
                             }
                         }
                     }),
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()
+                    ->iconButton()
+                    ->tooltip('Edit Table'),
+                DeleteAction::make()
+                    ->iconButton()
+                    ->tooltip('Delete Table'),
                 Action::make('destroy_table')
-                    ->label('Destroy DB Table')
                     ->color('danger')
                     ->icon('heroicon-o-trash')
+                    ->iconButton()
+                    ->tooltip('Destroy DB Table (Nuclear Option)')
                     ->requiresConfirmation()
                     ->modalHeading('⚠️ NUCLEAR OPTION: Destroy Database Table')
                     ->modalDescription('This will PERMANENTLY DELETE the physical table and ALL DATA. This cannot be undone.')
@@ -388,6 +570,7 @@ class DynamicModelResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ])
+            ->recordUrl(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['tableId' => $record->id]))
             ->striped()
             ->paginated([10, 25, 50, 100])
             ->poll('30s');
