@@ -5,6 +5,15 @@
             <p class="text-gray-500">Go to "Table Builder" and click "View Data" on a table.</p>
         </div>
     @else
-        {{ $this->table }}
+        @if($isSpreadsheet)
+            @php
+                $dynamicModel = \App\Models\DynamicModel::find($tableId);
+            @endphp
+            @if($dynamicModel)
+                @livewire(\App\Filament\Widgets\UniverSheetWidget::class, ['tableName' => $dynamicModel->table_name])
+            @endif
+        @else
+            {{ $this->table }}
+        @endif
     @endif
 </x-filament-panels::page>

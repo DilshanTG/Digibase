@@ -10,6 +10,8 @@ use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
+use App\Models\DynamicRecord;
+use App\Observers\DynamicRecordObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +22,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // 🧠 CENTRAL NERVOUS SYSTEM: Register the Observer
+        DynamicRecord::observe(DynamicRecordObserver::class);
+
         Scramble::extendOpenApi(function (OpenApi $openApi) {
             $openApi->secure(
                 SecurityScheme::http('bearer')

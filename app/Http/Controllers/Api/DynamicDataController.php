@@ -575,22 +575,22 @@ class DynamicDataController extends Controller
             $data['updated_at'] = now();
         }
 
-        $id = DB::table($tableName)->insertGetId($data);
-        // Use actual table name for retrieval
-        $record = DB::table($tableName)->where('id', $id)->first();
+        // 🧘 OBSERVER PATTERN: Use Eloquent to trigger Observer events
+        $record = new DynamicRecord();
+        $record->setDynamicTable($tableName);
+        $record->timestamps = false; // We handle timestamps manually in $data
+        $record->fill($data);
+        $record->save();
+        
+        // Reload to get full record including generated fields (timestamp, id)
+        $record = $record->fresh();
 
         event(new ModelActivity('created', $model->name, $record, $request->user()));
 
-        // 📡 LIVE WIRE: Broadcast to connected clients
-        ModelChanged::dispatch($tableName, 'created', (array) $record);
-
         $this->triggerWebhooks($model->id, 'created', [
             'table' => $tableName,
-            'record' => (array) $record,
+            'record' => $record->toArray(),
         ]);
-
-        // 🚀 TURBO CACHE: Clear cache for this table
-        $this->clearTableCache($tableName);
 
         return response()->json(['data' => $record], 201);
     }
@@ -651,28 +651,30 @@ class DynamicDataController extends Controller
             }
         }
 
-        if ($model->has_timestamps && !empty($data)) {
-            $data['updated_at'] = now();
-        }
 
+        // 🧘 OBSERVER PATTERN: Use Eloquent to trigger Observer events
+        $recordInstance = new DynamicRecord();
+        $recordInstance->setDynamicTable($tableName);
+        
+        // Find existing record using the model instance
+        $pdoRecord = $recordInstance->findOrFail($id);
+        
+        // Ensure the found instance also has the table set for updates
+        $pdoRecord->setDynamicTable($tableName);
+        $pdoRecord->timestamps = false; // We handle timestamps manually in $data
+        
         if (!empty($data)) {
-            DB::table($tableName)->where('id', $id)->update($data);
+            $pdoRecord->update($data);
         }
 
-        $record = DB::table($tableName)->where('id', $id)->first();
+        $record = $pdoRecord->fresh();
 
         event(new ModelActivity('updated', $model->name, $record, $request->user()));
 
-        // 📡 LIVE WIRE: Broadcast to connected clients
-        ModelChanged::dispatch($tableName, 'updated', (array) $record);
-
         $this->triggerWebhooks($model->id, 'updated', [
             'table' => $tableName,
-            'record' => (array) $record,
+            'record' => $record->toArray(),
         ]);
-
-        // 🚀 TURBO CACHE: Clear cache for this table
-        $this->clearTableCache($tableName);
 
         return response()->json(['data' => $record]);
     }
@@ -706,26 +708,30 @@ class DynamicDataController extends Controller
 
         $recordData = (array) $record;
 
+        // 🧘 OBSERVER PATTERN: Use Eloquent to trigger Observer events
+        $recordInstance = new DynamicRecord();
+        $recordInstance->setDynamicTable($tableName);
+        
+        $pdoRecord = $recordInstance->findOrFail($id);
+        $pdoRecord->setDynamicTable($tableName);
+        $pdoRecord->timestamps = false;
+
         if ($model->has_soft_deletes) {
-            DB::table($tableName)->where('id', $id)->update([
-                'deleted_at' => now(),
-            ]);
+            $softDeleteData = ['deleted_at' => now()];
+            if ($model->has_timestamps) {
+                $softDeleteData['updated_at'] = now();
+            }
+            $pdoRecord->update($softDeleteData);
         } else {
-            DB::table($tableName)->where('id', $id)->delete();
+            $pdoRecord->delete();
         }
 
         event(new ModelActivity('deleted', $model->name, ['id' => $id], $request->user()));
-
-        // 📡 LIVE WIRE: Broadcast to connected clients
-        ModelChanged::dispatch($tableName, 'deleted', ['id' => $id]);
 
         $this->triggerWebhooks($model->id, 'deleted', [
             'table' => $tableName,
             'record' => $recordData,
         ]);
-
-        // 🚀 TURBO CACHE: Clear cache for this table
-        $this->clearTableCache($tableName);
 
         return response()->json(['message' => 'Record deleted successfully']);
     }

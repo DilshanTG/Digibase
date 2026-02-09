@@ -37,10 +37,24 @@ class DataExplorer extends Page implements HasTable
     protected string $view = 'filament.pages.data-explorer';
 
     public ?string $tableId = null;
+    public bool $isSpreadsheet = false;
 
     public function mount(): void
     {
         $this->tableId = request()->query('tableId');
+        $this->isSpreadsheet = (bool) request()->query('spreadsheet');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('toggleSpreadsheet')
+                ->label($this->isSpreadsheet ? 'Standard View' : 'Spreadsheet View')
+                ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
+                ->color($this->isSpreadsheet ? 'gray' : 'primary')
+                ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
+                ->visible(fn () => $this->tableId !== null),
+        ];
     }
 
     public function table(Table $table): Table
