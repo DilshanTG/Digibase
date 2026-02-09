@@ -202,20 +202,23 @@ class DynamicDataController extends Controller
 
     /**
      * Build validation rules from dynamic fields.
+     * 🩺 SCHEMA DOCTOR: Merges type-based rules with custom validation_rules
      */
-    protected function buildValidationRules(DynamicModel $model, bool $isUpdate = false): array
+    protected function buildValidationRules(DynamicModel $model, bool $isUpdate = false, ?int $recordId = null): array
     {
         $rules = [];
 
         foreach ($model->fields as $field) {
             $fieldRules = [];
 
+            // 1. Basic Required/Nullable
             if ($field->is_required && !$isUpdate) {
                 $fieldRules[] = 'required';
             } else {
                 $fieldRules[] = 'nullable';
             }
 
+            // 2. Type-based defaults
             switch ($field->type) {
                 case 'string':
                 case 'slug':
@@ -265,9 +268,18 @@ class DynamicDataController extends Controller
                     break;
             }
 
+            // 3. Unique Check (with proper ignore for updates)
             if ($field->is_unique) {
-                // Use actual table name for unique check
-                $fieldRules[] = 'unique:' . $model->table_name . ',' . $field->name;
+                $uniqueRule = 'unique:' . $model->table_name . ',' . $field->name;
+                if ($isUpdate && $recordId) {
+                    $uniqueRule .= ',' . $recordId;
+                }
+                $fieldRules[] = $uniqueRule;
+            }
+
+            // 4. 🩺 MERGE CUSTOM RULES (Schema Doctor)
+            if (!empty($field->validation_rules) && is_array($field->validation_rules)) {
+                $fieldRules = array_merge($fieldRules, $field->validation_rules);
             }
 
             $rules[$field->name] = $fieldRules;
@@ -606,16 +618,8 @@ class DynamicDataController extends Controller
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
-        $rules = $this->buildValidationRules($model, true);
-
-        // Modify unique rules to ignore current record
-        foreach ($rules as $fieldName => &$fieldRules) {
-            foreach ($fieldRules as $key => $rule) {
-                if (str_starts_with($rule, 'unique:')) {
-                    $fieldRules[$key] = $rule . ',' . $id;
-                }
-            }
-        }
+        // 🩺 SCHEMA DOCTOR: Pass recordId to properly handle unique constraints
+        $rules = $this->buildValidationRules($model, true, $id);
 
         $validator = Validator::make($request->all(), $rules);
 

@@ -130,6 +130,23 @@ class DynamicModelResource extends Resource
                                             ->label('Hidden (API)')
                                             ->helperText('Hide from API responses')
                                             ->default(false),
+
+                                        Forms\Components\TagsInput::make('validation_rules')
+                                            ->label('Custom Rules')
+                                            ->placeholder('Add rule (e.g. email, min:8)')
+                                            ->helperText('Laravel validation rules. Press Enter to add.')
+                                            ->suggestions([
+                                                'email',
+                                                'url', 
+                                                'numeric',
+                                                'min:1',
+                                                'max:255',
+                                                'regex:/^[a-z]+$/i',
+                                                'alpha',
+                                                'alpha_num',
+                                                'confirmed',
+                                                'uuid',
+                                            ]),
                                     ])
                                     ->columns(5)
                                     ->addActionLabel('Add New Column')
