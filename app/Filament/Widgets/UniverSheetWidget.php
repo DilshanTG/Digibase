@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class UniverSheetWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.univer-sheet';
+    protected string $view = 'filament.widgets.univer-sheet';
     protected int|string|array $columnSpan = 'full';
 
     public ?string $tableId = null;
