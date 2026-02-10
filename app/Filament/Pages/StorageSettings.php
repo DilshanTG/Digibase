@@ -9,7 +9,6 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class StorageSettings extends Page implements HasForms
@@ -21,6 +20,8 @@ class StorageSettings extends Page implements HasForms
     protected static ?string $title = 'Storage Configuration';
     protected static ?string $navigationLabel = 'Storage';
     protected static ?string $slug = 'settings/storage';
+
+    protected string $view = 'filament.pages.storage-settings';
 
     public ?array $data = [];
 
@@ -40,8 +41,8 @@ class StorageSettings extends Page implements HasForms
     public function form(Schema $form): Schema
     {
         return $form
-            ->schema([
-                Section::make('Storage Driver')
+            ->components([
+                \Filament\Schemas\Components\Section::make('Storage Driver')
                     ->description('Choose where your application should permanently store files.')
                     ->schema([
                         Forms\Components\Select::make('storage_driver')
@@ -55,7 +56,7 @@ class StorageSettings extends Page implements HasForms
                             ->native(false),
                     ]),
 
-                Section::make('Amazon S3 Configuration')
+                \Filament\Schemas\Components\Section::make('Amazon S3 Configuration')
                     ->description('Detailed credentials for your S3-compatible cloud storage.')
                     ->visible(fn ($get) => $get('storage_driver') === 's3')
                     ->columns(2)
