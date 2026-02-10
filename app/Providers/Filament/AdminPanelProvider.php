@@ -62,7 +62,7 @@ class AdminPanelProvider extends PanelProvider
                     ->sort(99)
                     ->openUrlInNewTab(),
                 NavigationItem::make('Log Viewer')
-                    ->url('/admin/log-viewer', shouldOpenInNewTab: false)
+                    ->url(url('/log-viewer'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-bug-ant')
                     ->group('System')
                     ->sort(100)

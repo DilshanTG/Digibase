@@ -639,27 +639,16 @@ class CoreDataController extends Controller
                 $record->fill($data);
                 $record->save();
                 
-                // Handle file uploads using Spatie Media Library
+                // 📸 Handle File Uploads using Spatie Media Library
+                $fileFields = $model->fields->whereIn('type', ['image', 'file']);
                 foreach ($fileFields as $field) {
-                    $collection = $field->type === 'image' ? 'images' : 'files';
-                    
                     if ($request->hasFile($field->name)) {
-                        $files = $request->file($field->name);
-                        
-                        // Handle multiple files
-                        if (is_array($files)) {
-                            foreach ($files as $file) {
-                                $record->addMedia($file)
-                                    ->toMediaCollection($collection, 'digibase_storage');
-                            }
-                        } else {
-                            $record->addMedia($files)
-                                ->toMediaCollection($collection, 'digibase_storage');
-                        }
+                        $record->addMediaFromRequest($field->name)
+                               ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
                     }
                 }
                 
-                return $record->fresh();
+                return $record;
             });
 
             event(new ModelActivity('created', $model->name, $record, $request->user()));
@@ -673,24 +662,53 @@ class CoreDataController extends Controller
             $responseData = $record->toArray();
             if (method_exists($record, 'getMedia')) {
                 $responseData['media'] = [
-                    'files' => $record->getMedia('files')->map(fn($media) => [
-                        'id' => $media->id,
-                        'name' => $media->name,
-                        'file_name' => $media->file_name,
-                        'mime_type' => $media->mime_type,
-                        'size' => $media->size,
-                        'url' => $media->getUrl(),
-                    ]),
-                    'images' => $record->getMedia('images')->map(fn($media) => [
-                        'id' => $media->id,
-                        'name' => $media->name,
-                        'file_name' => $media->file_name,
-                        'mime_type' => $media->mime_type,
-                        'size' => $media->size,
-                        'url' => $media->getUrl(),
-                        'thumb_url' => $media->hasGeneratedConversion('thumb') ? $media->getUrl('thumb') : null,
-                        'preview_url' => $media->hasGeneratedConversion('preview') ? $media->getUrl('preview') : null,
-                    ]),
+                    'files' => $record->getMedia('files')->map(function($media) {
+                        try {
+                            return [
+                                'id' => $media->id,
+                                'name' => $media->name,
+                                'file_name' => $media->file_name,
+                                'mime_type' => $media->mime_type,
+                                'size' => $media->size,
+                                'url' => $media->getUrl(),
+                            ];
+                        } catch (\Throwable) {
+                            // Fallback to direct storage URL if model reload fails (common in dynamic tables)
+                            return [
+                                'id' => $media->id,
+                                'name' => $media->name,
+                                'file_name' => $media->file_name,
+                                'mime_type' => $media->mime_type,
+                                'size' => $media->size,
+                                'url' => Storage::disk($media->disk ?? 'digibase_storage')->url($media->id . '/' . $media->file_name),
+                            ];
+                        }
+                    }),
+                    'images' => $record->getMedia('images')->map(function($media) {
+                        try {
+                            return [
+                                'id' => $media->id,
+                                'name' => $media->name,
+                                'file_name' => $media->file_name,
+                                'mime_type' => $media->mime_type,
+                                'size' => $media->size,
+                                'url' => $media->getUrl(),
+                                'thumb_url' => $media->hasGeneratedConversion('thumb') ? $media->getUrl('thumb') : null,
+                                'preview_url' => $media->hasGeneratedConversion('preview') ? $media->getUrl('preview') : null,
+                            ];
+                        } catch (\Exception) {
+                             return [
+                                'id' => $media->id,
+                                'name' => $media->name,
+                                'file_name' => $media->file_name,
+                                'mime_type' => $media->mime_type,
+                                'size' => $media->size,
+                                'url' => Storage::disk($media->disk ?? 'digibase_storage')->url($media->id . '/' . $media->file_name),
+                                'thumb_url' => null,
+                                'preview_url' => null,
+                            ];
+                        }
+                    }),
                 ];
             }
 
@@ -783,32 +801,21 @@ class CoreDataController extends Controller
                     $pdoRecord->update($data);
                 }
 
-                // Handle file uploads using Spatie Media Library
+                // 📸 Handle File Uploads using Spatie Media Library
+                $fileFields = $model->fields->whereIn('type', ['image', 'file']);
                 foreach ($fileFields as $field) {
-                    $collection = $field->type === 'image' ? 'images' : 'files';
-                    
                     if ($request->hasFile($field->name)) {
                         // Clear existing media if replacing
                         if ($request->input('replace_' . $field->name, false)) {
-                            $pdoRecord->clearMediaCollection($collection);
+                            $pdoRecord->clearMediaCollection($field->type === 'image' ? 'images' : 'files');
                         }
                         
-                        $files = $request->file($field->name);
-                        
-                        // Handle multiple files
-                        if (is_array($files)) {
-                            foreach ($files as $file) {
-                                $pdoRecord->addMedia($file)
-                                    ->toMediaCollection($collection, 'digibase_storage');
-                            }
-                        } else {
-                            $pdoRecord->addMedia($files)
-                                ->toMediaCollection($collection, 'digibase_storage');
-                        }
+                        $pdoRecord->addMediaFromRequest($field->name)
+                                  ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
                     }
                 }
 
-                return $pdoRecord->fresh();
+                return $pdoRecord;
             });
 
             event(new ModelActivity('updated', $model->name, $updatedRecord, $request->user()));

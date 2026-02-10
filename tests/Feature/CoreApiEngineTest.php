@@ -9,6 +9,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -52,6 +54,7 @@ class CoreApiEngineTest extends TestCase
 
         // Create a test dynamic model
         $this->model = DynamicModel::create([
+            'user_id' => $this->user->id,
             'name' => 'test_products',
             'display_name' => 'Test Products',
             'table_name' => 'test_products',
@@ -410,5 +413,47 @@ class CoreApiEngineTest extends TestCase
             ->assertJson([
                 'error_code' => 'TABLE_ACCESS_DENIED',
             ]);
+    }
+
+    /** @test */
+    public function it_handles_file_uploads()
+    {
+        Storage::fake('digibase_storage');
+
+        // Add file field to model
+        DynamicField::create([
+            'dynamic_model_id' => $this->model->id,
+            'name' => 'avatar',
+            'display_name' => 'Avatar',
+            'type' => 'image',
+            'is_required' => false,
+            'is_unique' => false,
+        ]);
+
+        $file = UploadedFile::fake()->image('avatar.jpg');
+
+        $response = $this->postJson('/api/v1/data/test_products', [
+            'name' => 'Product with Image',
+            'price' => 10.99,
+            'avatar' => $file,
+        ], [
+            'Authorization' => 'Bearer ' . $this->apiKey->key,
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonStructure([
+                'data' => [
+                    'media' => [
+                        'images' => [
+                            '*' => ['url', 'file_name', 'mime_type']
+                        ]
+                    ]
+                ]
+            ]);
+
+        // Verify media exists for the record
+        $recordId = $response->json('data.id');
+        $record = (new \App\Models\DynamicRecord)->setDynamicTable('test_products')->findOrFail($recordId);
+        $this->assertCount(1, $record->getMedia('images'));
     }
 }

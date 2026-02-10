@@ -32,6 +32,14 @@ class DynamicRecord extends Model implements HasMedia
     }
 
     /**
+     * Override getMorphClass to support dynamic tables in Spatie Media Library.
+     */
+    public function getMorphClass()
+    {
+        return $this->getTable();
+    }
+
+    /**
      * Register media collections for this model.
      * Supports multiple file types with automatic optimization.
      */

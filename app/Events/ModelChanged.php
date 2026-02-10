@@ -6,7 +6,6 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
 /**
  * Real-time model change event.
@@ -19,7 +18,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class ModelChanged implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, InteractsWithSockets;
 
     /**
      * @param string $table The table/model name
