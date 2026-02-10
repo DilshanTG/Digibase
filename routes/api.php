@@ -47,11 +47,11 @@ Route::get('/storage/{file}/download', [StorageController::class, 'download'])->
 // 🎯 Type-Safe Casting: Strict type enforcement
 // 🚦 Rate Limiting: Dynamic per-key limits from api_keys table
 // ============================================================================
-Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::class])->group(function () {
+Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::class, App\Http\Middleware\LogApiActivity::class])->group(function () {
     // Read operations (pk_ or sk_ keys with 'read' scope)
     Route::get('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'index']);
-    Route::get('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'show']);
     Route::get('/data/{tableName}/schema', [App\Http\Controllers\Api\CoreDataController::class, 'schema']);
+    Route::get('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'show']);
     
     // Write operations (sk_ keys only with 'write' scope)
     Route::post('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'store']);

@@ -13,8 +13,8 @@ class VerifyApiKey
     /**
      * Handle an incoming request.
      *
-     * This middleware verifies API keys for the Dynamic Data API.
-     * It checks both Bearer token and query parameter.
+     * Verifies API keys using an indexed O(1) hash lookup via key_hash column
+     * instead of loading all keys into memory.
      */
     public function handle(Request $request, Closure $next, ?string $requiredScope = null): Response
     {
@@ -29,17 +29,10 @@ class VerifyApiKey
             ], 401);
         }
 
-        // 2. Find the Key in Database using constant-time hash comparison
-        //    We hash the token and look up by hash to prevent timing attacks.
-        //    Fallback: iterate all active keys with hash_equals for constant-time comparison.
-        $apiKey = null;
-        $candidates = ApiKey::where('is_active', true)->get();
-        foreach ($candidates as $candidate) {
-            if (hash_equals($candidate->key, $token)) {
-                $apiKey = $candidate;
-                break;
-            }
-        }
+        // 2. Find the Key via indexed hash lookup — O(1) instead of O(n)
+        //    Computes SHA-256 of token, looks up by indexed key_hash column,
+        //    then verifies with hash_equals() to prevent timing attacks.
+        $apiKey = ApiKey::findByToken($token);
 
         if (!$apiKey) {
             return response()->json([
