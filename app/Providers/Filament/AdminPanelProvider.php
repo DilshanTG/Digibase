@@ -21,6 +21,7 @@ use MWGuerra\FileManager\FileManagerPlugin;
 use Inerba\DbConfig\DbConfigPlugin;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use pxlrbt\FilamentSpotlight\SpotlightPlugin;
+use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
@@ -65,6 +66,12 @@ class AdminPanelProvider extends PanelProvider
             ->plugin(
                 SpotlightPlugin::make()
             )
+            ->plugin(
+                FilamentSpatieLaravelBackupPlugin::make()
+                    ->usingPage(\App\Filament\Pages\Backups::class)
+                    ->noTimeout()
+                    ->authorize(fn () => auth()->check() && auth()->id() === 1)
+            )
             ->navigationItems([
                 NavigationItem::make('API Docs')
                     ->url('/docs/api')
@@ -72,6 +79,12 @@ class AdminPanelProvider extends PanelProvider
                     ->group('Developers')
                     ->sort(99)
                     ->openUrlInNewTab(),
+                NavigationItem::make('Pulse Monitor')
+                    ->url('/pulse', shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-heart')
+                    ->group('System')
+                    ->sort(99)
+                    ->visible(fn () => auth()->check() && auth()->id() === 1),
                 NavigationItem::make('Log Viewer')
                     ->url(url('/log-viewer'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-bug-ant')

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use App\Models\DynamicRecord;
 use App\Observers\DynamicRecordObserver;
+use Laravel\Pulse\Facades\Pulse;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
 
         // 🔒 SECURITY: Log Viewer Access Control
         $this->configureLogViewerSecurity();
+
+        // 🩺 MONITORING: Pulse Dashboard Access Control
+        $this->configurePulseSecurity();
 
         Scramble::extendOpenApi(function (OpenApi $openApi) {
             $openApi->secure(
@@ -48,6 +52,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('viewLogViewer', function ($user) {
             // Allow User ID 1 (super admin) or users with is_admin flag
             return $user->id === 1 || ($user->is_admin ?? false);
+        });
+    }
+
+    private function configurePulseSecurity(): void
+    {
+        Gate::define('viewPulse', function ($user) {
+            return $user->id === 1;
         });
     }
 
