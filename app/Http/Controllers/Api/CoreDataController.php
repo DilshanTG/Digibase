@@ -470,14 +470,27 @@ class CoreDataController extends Controller
         $data = $query->paginate($perPage);
 
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
-        $data->getCollection()->each(function ($item) use ($hiddenFields) {
+        $prefix = $tableName . '__';
+
+        $results = $data->getCollection()->map(function ($item) use ($hiddenFields, $prefix) {
             if (method_exists($item, 'makeHidden')) {
                 $item->makeHidden($hiddenFields);
             }
+            
+            $array = $item->toArray();
+            $cleaned = [];
+            foreach ($array as $key => $value) {
+                if (is_string($key) && str_starts_with($key, $prefix)) {
+                    $cleaned[substr($key, strlen($prefix))] = $value;
+                } else {
+                    $cleaned[$key] = $value;
+                }
+            }
+            return $cleaned;
         });
 
         return response()->json([
-            'data' => $data->items(),
+            'data' => $results,
             'meta' => [
                 'current_page' => $data->currentPage(),
                 'last_page' => $data->lastPage(),
@@ -570,7 +583,18 @@ class CoreDataController extends Controller
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         $record->makeHidden($hiddenFields);
 
-        return response()->json(['data' => $record]);
+        $array = $record->toArray();
+        $prefix = $tableName . '__';
+        $cleaned = [];
+        foreach ($array as $key => $value) {
+            if (is_string($key) && str_starts_with($key, $prefix)) {
+                $cleaned[substr($key, strlen($prefix))] = $value;
+            } else {
+                $cleaned[$key] = $value;
+            }
+        }
+
+        return response()->json(['data' => $cleaned]);
     }
 
     /**

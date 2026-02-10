@@ -133,12 +133,27 @@ class DynamicRelationTest extends TestCase
                 $table->foreignId('user_id');
                 $table->string('name');
                 $table->string('key', 64)->unique();
+                $table->string('key_hash', 64)->nullable()->index();
                 $table->string('type')->default('public');
                 $table->json('scopes')->nullable();
                 $table->integer('rate_limit')->default(60);
                 $table->boolean('is_active')->default(true);
                 $table->timestamp('expires_at')->nullable();
                 $table->timestamp('last_used_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        // 6. Personal Access Tokens (Sanctum) - Needed for auth checks
+        if (!Schema::hasTable('personal_access_tokens')) {
+            Schema::create('personal_access_tokens', function (Blueprint $table) {
+                $table->id();
+                $table->morphs('tokenable');
+                $table->string('name');
+                $table->string('token', 64)->unique();
+                $table->text('abilities')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable();
                 $table->timestamps();
             });
         }

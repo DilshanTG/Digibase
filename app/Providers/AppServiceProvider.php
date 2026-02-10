@@ -106,17 +106,39 @@ class AppServiceProvider extends ServiceProvider
 
             $driver = \App\Models\SystemSetting::get('storage_driver', 'local');
             
+            // Build the configuration for our dynamic 'digibase_storage' disk
+            $storageConfig = [
+                'driver' => $driver,
+                'visibility' => 'public',
+                'throw' => false,
+                'report' => false,
+            ];
+
             if ($driver === 's3') {
-                config([
-                    'filesystems.default' => 's3',
-                    'filesystems.disks.s3.key' => \App\Models\SystemSetting::get('aws_access_key_id'),
-                    'filesystems.disks.s3.secret' => \App\Models\SystemSetting::get('aws_secret_access_key'),
-                    'filesystems.disks.s3.region' => \App\Models\SystemSetting::get('aws_default_region', 'us-east-1'),
-                    'filesystems.disks.s3.bucket' => \App\Models\SystemSetting::get('aws_bucket'),
-                    'filesystems.disks.s3.endpoint' => \App\Models\SystemSetting::get('aws_endpoint'),
-                    'filesystems.disks.s3.use_path_style_endpoint' => \App\Models\SystemSetting::get('aws_use_path_style') === 'true',
+                $storageConfig = array_merge($storageConfig, [
+                    'key' => \App\Models\SystemSetting::get('aws_access_key_id'),
+                    'secret' => \App\Models\SystemSetting::get('aws_secret_access_key'),
+                    'region' => \App\Models\SystemSetting::get('aws_default_region', 'us-east-1'),
+                    'bucket' => \App\Models\SystemSetting::get('aws_bucket'),
+                    'endpoint' => \App\Models\SystemSetting::get('aws_endpoint'),
+                    'use_path_style_endpoint' => \App\Models\SystemSetting::get('aws_use_path_style') === 'true',
+                    'url' => \App\Models\SystemSetting::get('aws_url'),
+                ]);
+
+                // Also update default s3 and default disk for global Laravel operations
+                config(['filesystems.default' => 's3']);
+                config(['filesystems.disks.s3' => array_merge(config('filesystems.disks.s3', []), $storageConfig)]);
+            } else {
+                // Local configuration
+                $storageConfig = array_merge($storageConfig, [
+                    'root' => storage_path('app/public'),
+                    'url' => rtrim(config('app.url', 'http://localhost'), '/').'/storage',
                 ]);
             }
+
+            // 🚀 Register the critical 'digibase_storage' disk used by the Core Engine
+            config(['filesystems.disks.digibase_storage' => $storageConfig]);
+
         } catch (\Exception $e) {
             // Silence is golden during early boot/migrations
         }
