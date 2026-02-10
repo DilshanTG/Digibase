@@ -488,7 +488,7 @@ class DynamicModelResource extends Resource
                                 foreach ($record->fields as $field) {
                                     $type = $field->getDatabaseType();
                                     $column = $table->{$type}($field->name);
-                                    if (!$field->is_required) $column->nullable();
+                                    if (!$field->is_required || in_array($field->type, ['file', 'image'])) $column->nullable();
                                     if ($field->is_unique) $column->unique();
                                 }
                                 $table->timestamps();
@@ -508,7 +508,7 @@ class DynamicModelResource extends Resource
                                     if (!DbSchema::hasColumn($tableName, $field->name)) {
                                         $type = $field->getDatabaseType();
                                         $column = $table->{$type}($field->name);
-                                        if (!$field->is_required) $column->nullable();
+                                        if (!$field->is_required || in_array($field->type, ['file', 'image'])) $column->nullable();
                                         $columnsAdded++;
                                     }
                                 }

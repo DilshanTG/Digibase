@@ -533,7 +533,7 @@ PHP;
 
         $definition = "\$table->{$method}('{$field->name}')";
 
-        if (!$field->is_required) {
+        if (!$field->is_required || in_array($field->type, ['file', 'image'])) {
             $definition .= '->nullable()';
         }
 

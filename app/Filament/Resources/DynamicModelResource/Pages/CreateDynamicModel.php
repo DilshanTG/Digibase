@@ -49,7 +49,8 @@ class CreateDynamicModel extends CreateRecord
 
                 foreach ($model->fields as $field) {
                     $column = match ($field->type) {
-                        'string', 'file' => $table->string($field->name),
+                        'string' => $table->string($field->name),
+                        'file', 'image' => $table->string($field->name)->nullable(),
                         'text' => $table->text($field->name),
                         'integer' => $table->integer($field->name),
                         'boolean' => $table->boolean($field->name),
