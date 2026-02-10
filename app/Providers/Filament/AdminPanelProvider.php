@@ -20,6 +20,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 use MWGuerra\FileManager\FileManagerPlugin;
 use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
 use Inerba\DbConfig\DbConfigPlugin;
+use Filament\SpatieLaravelMediaLibraryPlugin;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
@@ -46,6 +47,7 @@ class AdminPanelProvider extends PanelProvider
                 'Storage',
                 'Integrations',
                 'Settings',
+                'System', // New group for logs and backups
             ])
             ->plugin(
                 FileManagerPlugin::make()
@@ -59,6 +61,9 @@ class AdminPanelProvider extends PanelProvider
             ->plugin(
                 DbConfigPlugin::make()
             )
+            ->plugin(
+                SpatieLaravelMediaLibraryPlugin::make()
+            )
             ->navigationItems([
                 NavigationItem::make('API Docs')
                     ->url('/docs/api')
@@ -66,6 +71,12 @@ class AdminPanelProvider extends PanelProvider
                     ->group('Integrations')
                     ->sort(99)
                     ->openUrlInNewTab(),
+                NavigationItem::make('Log Viewer')
+                    ->url('/admin/log-viewer', shouldOpenInNewTab: false)
+                    ->icon('heroicon-o-bug-ant')
+                    ->group('System')
+                    ->sort(100)
+                    ->visible(fn () => auth()->check() && (auth()->id() === 1 || auth()->user()->is_admin ?? false)),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')

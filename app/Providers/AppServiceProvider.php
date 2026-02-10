@@ -9,6 +9,7 @@ use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use App\Models\DynamicRecord;
 use App\Observers\DynamicRecordObserver;
@@ -25,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
         // 🧠 CENTRAL NERVOUS SYSTEM: Register the Observer
         DynamicRecord::observe(DynamicRecordObserver::class);
 
+        // 🔒 SECURITY: Log Viewer Access Control
+        $this->configureLogViewerSecurity();
+
         Scramble::extendOpenApi(function (OpenApi $openApi) {
             $openApi->secure(
                 SecurityScheme::http('bearer')
@@ -33,6 +37,18 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureBranding();
         $this->configureStorage();
+    }
+
+    /**
+     * 🔒 SECURITY: Restrict Log Viewer to Admins Only
+     * Only User ID 1 or users with is_admin flag can access logs.
+     */
+    private function configureLogViewerSecurity(): void
+    {
+        Gate::define('viewLogViewer', function ($user) {
+            // Allow User ID 1 (super admin) or users with is_admin flag
+            return $user->id === 1 || ($user->is_admin ?? false);
+        });
     }
 
     private function configureBranding(): void

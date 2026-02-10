@@ -9,7 +9,7 @@ use Filament\Tables\Table;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -18,7 +18,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use BackedEnum;
@@ -99,12 +99,23 @@ class DataExplorer extends Page implements HasTable
 
         if ($dynamicModel->fields->isNotEmpty()) {
             foreach ($dynamicModel->fields as $field) {
-                // Use TextColumn for safe display (XSS protection)
-                $columns[] = TextColumn::make($field->name)
-                    ->label($field->display_name ?? Str::headline($field->name))
-                    ->sortable()
-                    ->searchable()
-                    ->limit(50); // Truncate long text
+                // Use SpatieMediaLibraryImageColumn for file/image fields
+                if (in_array($field->type, ['file', 'image'])) {
+                    $columns[] = SpatieMediaLibraryImageColumn::make($field->name)
+                        ->label($field->display_name ?? Str::headline($field->name))
+                        ->collection('files')
+                        ->conversion('thumb')
+                        ->circular(false)
+                        ->stacked()
+                        ->limit(3);
+                } else {
+                    // Use TextColumn for safe display (XSS protection)
+                    $columns[] = TextColumn::make($field->name)
+                        ->label($field->display_name ?? Str::headline($field->name))
+                        ->sortable()
+                        ->searchable()
+                        ->limit(50); // Truncate long text
+                }
             }
         }
         
@@ -145,6 +156,10 @@ class DataExplorer extends Page implements HasTable
             ]);
     }
 
+    /**
+     * Generate dynamic form fields based on DynamicModel schema.
+     * Now uses Spatie Media Library for file uploads.
+     */
     protected function getDynamicForm($dynamicModel): array
     {
         $fields = [];
@@ -154,7 +169,40 @@ class DataExplorer extends Page implements HasTable
                     'boolean' => Toggle::make($field->name),
                     'date' => DatePicker::make($field->name),
                     'datetime' => DateTimePicker::make($field->name),
-                    'file' => FileUpload::make($field->name),
+                    
+                    // 🎯 UPGRADED: Use Spatie Media Library for files
+                    'file' => SpatieMediaLibraryFileUpload::make($field->name)
+                        ->collection('files')
+                        ->multiple()
+                        ->maxFiles(5)
+                        ->maxSize(10240) // 10MB
+                        ->downloadable()
+                        ->openable()
+                        ->previewable()
+                        ->reorderable()
+                        ->disk('digibase_storage'),
+                    
+                    // 🎯 UPGRADED: Use Spatie Media Library for images with optimization
+                    'image' => SpatieMediaLibraryFileUpload::make($field->name)
+                        ->collection('images')
+                        ->image()
+                        ->imageEditor()
+                        ->imageEditorAspectRatios([
+                            null,
+                            '16:9',
+                            '4:3',
+                            '1:1',
+                        ])
+                        ->multiple()
+                        ->maxFiles(10)
+                        ->maxSize(5120) // 5MB
+                        ->downloadable()
+                        ->openable()
+                        ->previewable()
+                        ->reorderable()
+                        ->disk('digibase_storage')
+                        ->conversion('preview'),
+                    
                     default => TextInput::make($field->name),
                 };
 
