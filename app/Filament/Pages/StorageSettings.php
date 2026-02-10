@@ -2,16 +2,15 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Section;
-use Filament\Schemas\Schema;
-use Filament\Pages\Page;
-use Filament\Notifications\Notification;
 use App\Models\SystemSetting;
-use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Actions\Action;
+use Filament\Forms;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 
 class StorageSettings extends Page implements HasForms
 {
@@ -34,7 +33,7 @@ class StorageSettings extends Page implements HasForms
             'aws_default_region' => SystemSetting::get('aws_default_region', 'us-east-1'),
             'aws_bucket' => SystemSetting::get('aws_bucket'),
             'endpoint' => SystemSetting::get('aws_endpoint'),
-            'use_path_style_endpoint' => SystemSetting::get('aws_use_path_style') === 'true',
+            'use_path_style_endpoint' => SystemSetting::get('aws_use_path_style') === 'true' ? 'true' : 'false',
         ]);
     }
 
@@ -45,7 +44,7 @@ class StorageSettings extends Page implements HasForms
                 Section::make('Storage Driver')
                     ->description('Choose where your application should permanently store files.')
                     ->schema([
-                        Select::make('storage_driver')
+                        Forms\Components\Select::make('storage_driver')
                             ->label('Active Driver')
                             ->options([
                                 'local' => 'Local Disk (Server Storage)',
@@ -61,35 +60,35 @@ class StorageSettings extends Page implements HasForms
                     ->visible(fn ($get) => $get('storage_driver') === 's3')
                     ->columns(2)
                     ->schema([
-                        TextInput::make('aws_access_key_id')
+                        Forms\Components\TextInput::make('aws_access_key_id')
                             ->label('Access Key ID')
                             ->placeholder('AKIA...')
                             ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('aws_secret_access_key')
+                        Forms\Components\TextInput::make('aws_secret_access_key')
                             ->label('Secret Access Key')
                             ->password()
                             ->revealable()
                             ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('aws_default_region')
+                        Forms\Components\TextInput::make('aws_default_region')
                             ->label('Default Region')
                             ->placeholder('us-east-1')
                             ->default('us-east-1')
                             ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('aws_bucket')
+                        Forms\Components\TextInput::make('aws_bucket')
                             ->label('S3 Bucket Name')
                             ->placeholder('my-app-storage')
                             ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('endpoint')
+                        Forms\Components\TextInput::make('endpoint')
                             ->label('Endpoint URL (Optional)')
                             ->placeholder('https://s3.amazonaws.com')
                             ->helperText('Override if using MinIO, R2, or DigitalOcean Spaces.')
                             ->columnSpanFull(),
 
-                        Select::make('use_path_style_endpoint')
+                        Forms\Components\Select::make('use_path_style_endpoint')
                             ->label('Use Path Style')
                             ->options([
                                 'true' => 'Yes (Required for MinIO)',
@@ -124,7 +123,7 @@ class StorageSettings extends Page implements HasForms
             SystemSetting::set('aws_default_region', $data['aws_default_region'], 'storage');
             SystemSetting::set('aws_bucket', $data['aws_bucket'], 'storage');
             SystemSetting::set('aws_endpoint', $data['endpoint'], 'storage');
-            SystemSetting::set('aws_use_path_style', $data['use_path_style_endpoint'] ? 'true' : 'false', 'storage');
+            SystemSetting::set('aws_use_path_style', $data['use_path_style_endpoint'] === 'true' ? 'true' : 'false', 'storage');
         }
 
         Notification::make()
