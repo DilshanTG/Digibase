@@ -2,8 +2,8 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Schemas\Components\Select;
-use Filament\Schemas\Components\TextInput;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Pages\Page;
