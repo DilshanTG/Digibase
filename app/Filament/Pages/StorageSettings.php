@@ -4,133 +4,132 @@ namespace App\Filament\Pages;
 
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Form;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use App\Models\SystemSetting;
-use Illuminate\Support\Facades\Artisan;
-use BackedEnum;
-use UnitEnum;
-
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Actions\Action;
 
 class StorageSettings extends Page implements HasForms
 {
     use InteractsWithForms;
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cloud';
-    protected static string|UnitEnum|null $navigationGroup = 'Settings';
-    protected static ?string $title = 'Storage Settings';
+
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cloud';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static ?string $title = 'Storage Configuration';
+    protected static ?string $navigationLabel = 'Storage';
     protected static ?string $slug = 'settings/storage';
 
     public ?array $data = [];
 
     public function mount(): void
     {
-        // Load existing settings
         $this->form->fill([
-            'driver' => SystemSetting::get('storage.driver', 'local'),
-            'bucket' => SystemSetting::get('storage.bucket'),
-            'region' => SystemSetting::get('storage.region'),
-            'endpoint' => SystemSetting::get('storage.endpoint'),
-            'access_key' => SystemSetting::get('storage.access_key'),
-            'secret_key' => SystemSetting::get('storage.secret_key'), // Will be decrypted by getter
-            'public_url' => SystemSetting::get('storage.public_url'),
-            'use_path_style' => SystemSetting::get('storage.use_path_style') === 'true',
+            'storage_driver' => SystemSetting::get('storage_driver', 'local'),
+            'aws_access_key_id' => SystemSetting::get('aws_access_key_id'),
+            'aws_secret_access_key' => SystemSetting::get('aws_secret_access_key'),
+            'aws_default_region' => SystemSetting::get('aws_default_region', 'us-east-1'),
+            'aws_bucket' => SystemSetting::get('aws_bucket'),
+            'endpoint' => SystemSetting::get('aws_endpoint'),
+            'use_path_style_endpoint' => SystemSetting::get('aws_use_path_style') === 'true',
         ]);
     }
 
-    public function form($form)
+    public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Section::make('Storage Driver')
-                    ->description('Select where your files will be stored.')
+                    ->description('Choose where your application should permanently store files.')
                     ->schema([
-                        Select::make('driver')
+                        Select::make('storage_driver')
+                            ->label('Active Driver')
                             ->options([
-                                'local' => 'Local Storage (Public Disk)',
-                                's3' => 'Amazon S3',
-                                'r2' => 'Cloudflare R2',
-                                'spaces' => 'DigitalOcean Spaces',
-                                'minio' => 'MinIO / Self-Hosted S3',
+                                'local' => 'Local Disk (Server Storage)',
+                                's3' => 'Amazon S3 (Cloud Storage)',
                             ])
                             ->required()
-                            ->reactive()
-                            ->afterStateUpdated(fn ($state, callable $set) => $state === 'local' ? $set('endpoint', null) : null),
+                            ->live()
+                            ->native(false),
                     ]),
 
-                Section::make('Cloud Configuration')
-                    ->description('Enter your S3-compatible storage credentials.')
-                    ->visible(fn ($get) => $get('driver') !== 'local')
+                Section::make('Amazon S3 Configuration')
+                    ->description('Detailed credentials for your S3-compatible cloud storage.')
+                    ->visible(fn ($get) => $get('storage_driver') === 's3')
+                    ->columns(2)
                     ->schema([
-                        TextInput::make('bucket')
-                            ->label('Bucket Name')
-                            ->required(fn ($get) => $get('driver') !== 'local'),
-                        
-                        TextInput::make('region')
-                            ->label('Region')
-                            ->default('us-east-1')
-                            ->required(fn ($get) => $get('driver') !== 'local'),
-
-                        TextInput::make('endpoint')
-                            ->label('Endpoint URL')
-                            ->placeholder('https://<accountid>.r2.cloudflarestorage.com')
-                            ->helperText('Required for R2, Spaces, and MinIO. Optional for AWS S3.')
-                            ->url(),
-
-                        TextInput::make('access_key')
+                        TextInput::make('aws_access_key_id')
                             ->label('Access Key ID')
-                            ->required(fn ($get) => $get('driver') !== 'local'),
+                            ->placeholder('AKIA...')
+                            ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('secret_key')
+                        TextInput::make('aws_secret_access_key')
                             ->label('Secret Access Key')
                             ->password()
                             ->revealable()
-                            ->required(fn ($get) => $get('driver') !== 'local'),
-                        
-                        Select::make('use_path_style')
-                            ->label('Use Path Style Endpoint')
-                            ->options([
-                                'true' => 'Yes', 
-                                'false' => 'No',
-                            ])
-                            ->default('false'),
+                            ->required(fn ($get) => $get('storage_driver') === 's3'),
 
-                        TextInput::make('public_url')
-                            ->label('Public URL Root')
-                            ->placeholder('https://files.yourdomain.com')
-                            ->helperText('The base URL for accessing public files.'),
-                    ])->columns(2),
+                        TextInput::make('aws_default_region')
+                            ->label('Default Region')
+                            ->placeholder('us-east-1')
+                            ->default('us-east-1')
+                            ->required(fn ($get) => $get('storage_driver') === 's3'),
+
+                        TextInput::make('aws_bucket')
+                            ->label('S3 Bucket Name')
+                            ->placeholder('my-app-storage')
+                            ->required(fn ($get) => $get('storage_driver') === 's3'),
+
+                        TextInput::make('endpoint')
+                            ->label('Endpoint URL (Optional)')
+                            ->placeholder('https://s3.amazonaws.com')
+                            ->helperText('Override if using MinIO, R2, or DigitalOcean Spaces.')
+                            ->columnSpanFull(),
+
+                        Select::make('use_path_style_endpoint')
+                            ->label('Use Path Style')
+                            ->options([
+                                'true' => 'Yes (Required for MinIO)',
+                                'false' => 'No (Standard S3)',
+                            ])
+                            ->default('false')
+                            ->native(false),
+                    ]),
             ])
             ->statePath('data');
     }
 
-    public function save(): void
+    protected function getFormActions(): array
+    {
+        return [
+            Action::make('save')
+                ->label('Save Configuration')
+                ->submit('save')
+                ->color('primary'),
+        ];
+    }
+
+    public function submit(): void
     {
         $data = $this->form->getState();
 
-        // 1. Save Settings Securely
-        SystemSetting::set('storage.driver', $data['driver'], 'storage');
+        SystemSetting::set('storage_driver', $data['storage_driver'], 'storage');
         
-        if ($data['driver'] !== 'local') {
-            SystemSetting::set('storage.bucket', $data['bucket'], 'storage');
-            SystemSetting::set('storage.region', $data['region'], 'storage');
-            SystemSetting::set('storage.endpoint', $data['endpoint'], 'storage');
-            SystemSetting::set('storage.access_key', $data['access_key'], 'storage', true); // Encrypted
-            SystemSetting::set('storage.secret_key', $data['secret_key'], 'storage', true); // Encrypted
-            SystemSetting::set('storage.use_path_style', $data['use_path_style'], 'storage');
-            SystemSetting::set('storage.public_url', $data['public_url'], 'storage');
+        if ($data['storage_driver'] === 's3') {
+            SystemSetting::set('aws_access_key_id', $data['aws_access_key_id'], 'storage');
+            SystemSetting::set('aws_secret_access_key', $data['aws_secret_access_key'], 'storage', true);
+            SystemSetting::set('aws_default_region', $data['aws_default_region'], 'storage');
+            SystemSetting::set('aws_bucket', $data['aws_bucket'], 'storage');
+            SystemSetting::set('aws_endpoint', $data['endpoint'], 'storage');
+            SystemSetting::set('aws_use_path_style', $data['use_path_style_endpoint'] ? 'true' : 'false', 'storage');
         }
 
-        // 2. Clear Config Cache
-        Artisan::call('config:clear');
-
         Notification::make()
-            ->title('Storage settings saved')
+            ->title('Settings Saved Successfully')
             ->success()
-            ->body('Your storage configuration has been updated.')
             ->send();
     }
 }

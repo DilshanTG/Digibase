@@ -16,6 +16,7 @@ class SocialSettings extends AbstractPageSettings
 
     protected static ?string $title = 'Authentication';
     protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-share';
 
     protected string $view = 'filament.pages.social-settings';
 

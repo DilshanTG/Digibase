@@ -16,9 +16,9 @@ class BrandingSettings extends AbstractPageSettings
 
     protected static ?string $title = 'Branding';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
 
-    // protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-wrench-screwdriver'; // Uncomment if you want to set a custom navigation icon
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
 
     // protected ?string $subheading = ''; // Uncomment if you want to set a custom subheading
 

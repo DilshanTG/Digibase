@@ -43,15 +43,18 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth('full')
             ->navigationGroups([
+                'Administration',
                 'Database',
-                'Storage',
-                'Integrations',
+                'Developers',
                 'Settings',
-                'System', // New group for logs and backups
+                'System',
             ])
             ->plugin(
-                FileManagerPlugin::make()
-                    ->withoutSchemaExample()
+                FileManagerPlugin::make([
+                    \MWGuerra\FileManager\Filament\Pages\FileManager::class,
+                    \MWGuerra\FileManager\Filament\Pages\FileSystem::class,
+                ])
+                ->withoutSchemaExample()
             )
             ->plugin(
                 DbConfigPlugin::make()

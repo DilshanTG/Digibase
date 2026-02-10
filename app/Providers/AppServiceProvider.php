@@ -104,41 +104,21 @@ class AppServiceProvider extends ServiceProvider
         try {
             if (!class_exists(\App\Models\SystemSetting::class)) return;
 
-            $driver = \App\Models\SystemSetting::get('storage.driver', 'local');
-            $diskConfig = [];
-
-            if ($driver === 'local') {
-                $diskConfig = [
-                    'driver' => 'local',
-                    'root' => storage_path('app/public'),
-                    'url' => env('APP_URL').'/storage',
-                    'visibility' => 'public',
-                    'throw' => false,
-                ];
-            } else {
-                // S3 Compatible (AWS, R2, Spaces, MinIO)
-                $diskConfig = [
-                    'driver' => 's3',
-                    'key' => \App\Models\SystemSetting::get('storage.access_key'),
-                    'secret' => \App\Models\SystemSetting::get('storage.secret_key'),
-                    'region' => \App\Models\SystemSetting::get('storage.region', 'us-east-1'),
-                    'bucket' => \App\Models\SystemSetting::get('storage.bucket'),
-                    'endpoint' => \App\Models\SystemSetting::get('storage.endpoint'),
-                    'use_path_style_endpoint' => \App\Models\SystemSetting::get('storage.use_path_style') === 'true',
-                    'url' => \App\Models\SystemSetting::get('storage.public_url'),
-                    'visibility' => 'public', // Default to public for now, or control per file
-                    'throw' => false,
-                ];
-            }
-
-            // Register the dynamic disk
-            config(['filesystems.disks.digibase_storage' => $diskConfig]);
+            $driver = \App\Models\SystemSetting::get('storage_driver', 'local');
             
-            // Set as default if needed, or just ensure our controllers use it
-            // config(['filesystems.default' => 'digibase_storage']); 
-
+            if ($driver === 's3') {
+                config([
+                    'filesystems.default' => 's3',
+                    'filesystems.disks.s3.key' => \App\Models\SystemSetting::get('aws_access_key_id'),
+                    'filesystems.disks.s3.secret' => \App\Models\SystemSetting::get('aws_secret_access_key'),
+                    'filesystems.disks.s3.region' => \App\Models\SystemSetting::get('aws_default_region', 'us-east-1'),
+                    'filesystems.disks.s3.bucket' => \App\Models\SystemSetting::get('aws_bucket'),
+                    'filesystems.disks.s3.endpoint' => \App\Models\SystemSetting::get('aws_endpoint'),
+                    'filesystems.disks.s3.use_path_style_endpoint' => \App\Models\SystemSetting::get('aws_use_path_style') === 'true',
+                ]);
+            }
         } catch (\Exception $e) {
-            // Fallback to local if DB fails
+            // Silence is golden during early boot/migrations
         }
     }
 }
