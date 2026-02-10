@@ -577,6 +577,7 @@ class CoreDataController extends Controller
      * Create a new record in a dynamic model.
      * 🔒 TRANSACTION WRAPPER: Atomic operation
      * 🎯 TYPE-SAFE CASTING: Strict type enforcement
+     * 📁 FILE UPLOAD SUPPORT: Spatie Media Library integration
      */
     public function store(Request $request, string $tableName): JsonResponse
     {
@@ -609,8 +610,17 @@ class CoreDataController extends Controller
         try {
             $record = $this->executeInTransaction(function () use ($request, $model, $tableName) {
                 $data = [];
+                $fileFields = [];
                 
                 foreach ($model->fields as $field) {
+                    // Skip file/image fields - handle them separately
+                    if (in_array($field->type, ['file', 'image'])) {
+                        if ($request->hasFile($field->name)) {
+                            $fileFields[] = $field;
+                        }
+                        continue;
+                    }
+                    
                     if ($request->has($field->name)) {
                         $data[$field->name] = $this->castValue($request->input($field->name), $field);
                     } elseif ($field->default_value !== null) {
@@ -629,6 +639,26 @@ class CoreDataController extends Controller
                 $record->fill($data);
                 $record->save();
                 
+                // Handle file uploads using Spatie Media Library
+                foreach ($fileFields as $field) {
+                    $collection = $field->type === 'image' ? 'images' : 'files';
+                    
+                    if ($request->hasFile($field->name)) {
+                        $files = $request->file($field->name);
+                        
+                        // Handle multiple files
+                        if (is_array($files)) {
+                            foreach ($files as $file) {
+                                $record->addMedia($file)
+                                    ->toMediaCollection($collection, 'digibase_storage');
+                            }
+                        } else {
+                            $record->addMedia($files)
+                                ->toMediaCollection($collection, 'digibase_storage');
+                        }
+                    }
+                }
+                
                 return $record->fresh();
             });
 
@@ -639,11 +669,37 @@ class CoreDataController extends Controller
                 'record' => $record->toArray(),
             ]);
 
-            return response()->json(['data' => $record], 201);
+            // Include media URLs in response
+            $responseData = $record->toArray();
+            if (method_exists($record, 'getMedia')) {
+                $responseData['media'] = [
+                    'files' => $record->getMedia('files')->map(fn($media) => [
+                        'id' => $media->id,
+                        'name' => $media->name,
+                        'file_name' => $media->file_name,
+                        'mime_type' => $media->mime_type,
+                        'size' => $media->size,
+                        'url' => $media->getUrl(),
+                    ]),
+                    'images' => $record->getMedia('images')->map(fn($media) => [
+                        'id' => $media->id,
+                        'name' => $media->name,
+                        'file_name' => $media->file_name,
+                        'mime_type' => $media->mime_type,
+                        'size' => $media->size,
+                        'url' => $media->getUrl(),
+                        'thumb_url' => $media->hasGeneratedConversion('thumb') ? $media->getUrl('thumb') : null,
+                        'preview_url' => $media->hasGeneratedConversion('preview') ? $media->getUrl('preview') : null,
+                    ]),
+                ];
+            }
+
+            return response()->json(['data' => $responseData], 201);
         } catch (\Exception $e) {
             Log::error('Record creation failed', [
                 'table' => $tableName,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             
             return response()->json([
@@ -657,6 +713,7 @@ class CoreDataController extends Controller
      * Update a record in a dynamic model.
      * 🔒 TRANSACTION WRAPPER: Atomic operation
      * 🎯 TYPE-SAFE CASTING: Strict type enforcement
+     * 📁 FILE UPLOAD SUPPORT: Spatie Media Library integration
      */
     public function update(Request $request, string $tableName, int $id): JsonResponse
     {
@@ -695,8 +752,17 @@ class CoreDataController extends Controller
         try {
             $updatedRecord = $this->executeInTransaction(function () use ($request, $model, $tableName, $id) {
                 $data = [];
+                $fileFields = [];
                 
                 foreach ($model->fields as $field) {
+                    // Skip file/image fields - handle them separately
+                    if (in_array($field->type, ['file', 'image'])) {
+                        if ($request->hasFile($field->name)) {
+                            $fileFields[] = $field;
+                        }
+                        continue;
+                    }
+                    
                     if ($request->has($field->name)) {
                         $data[$field->name] = $this->castValue($request->input($field->name), $field);
                     }
@@ -717,6 +783,31 @@ class CoreDataController extends Controller
                     $pdoRecord->update($data);
                 }
 
+                // Handle file uploads using Spatie Media Library
+                foreach ($fileFields as $field) {
+                    $collection = $field->type === 'image' ? 'images' : 'files';
+                    
+                    if ($request->hasFile($field->name)) {
+                        // Clear existing media if replacing
+                        if ($request->input('replace_' . $field->name, false)) {
+                            $pdoRecord->clearMediaCollection($collection);
+                        }
+                        
+                        $files = $request->file($field->name);
+                        
+                        // Handle multiple files
+                        if (is_array($files)) {
+                            foreach ($files as $file) {
+                                $pdoRecord->addMedia($file)
+                                    ->toMediaCollection($collection, 'digibase_storage');
+                            }
+                        } else {
+                            $pdoRecord->addMedia($files)
+                                ->toMediaCollection($collection, 'digibase_storage');
+                        }
+                    }
+                }
+
                 return $pdoRecord->fresh();
             });
 
@@ -727,12 +818,38 @@ class CoreDataController extends Controller
                 'record' => $updatedRecord->toArray(),
             ]);
 
-            return response()->json(['data' => $updatedRecord]);
+            // Include media URLs in response
+            $responseData = $updatedRecord->toArray();
+            if (method_exists($updatedRecord, 'getMedia')) {
+                $responseData['media'] = [
+                    'files' => $updatedRecord->getMedia('files')->map(fn($media) => [
+                        'id' => $media->id,
+                        'name' => $media->name,
+                        'file_name' => $media->file_name,
+                        'mime_type' => $media->mime_type,
+                        'size' => $media->size,
+                        'url' => $media->getUrl(),
+                    ]),
+                    'images' => $updatedRecord->getMedia('images')->map(fn($media) => [
+                        'id' => $media->id,
+                        'name' => $media->name,
+                        'file_name' => $media->file_name,
+                        'mime_type' => $media->mime_type,
+                        'size' => $media->size,
+                        'url' => $media->getUrl(),
+                        'thumb_url' => $media->hasGeneratedConversion('thumb') ? $media->getUrl('thumb') : null,
+                        'preview_url' => $media->hasGeneratedConversion('preview') ? $media->getUrl('preview') : null,
+                    ]),
+                ];
+            }
+
+            return response()->json(['data' => $responseData]);
         } catch (\Exception $e) {
             Log::error('Record update failed', [
                 'table' => $tableName,
                 'id' => $id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             
             return response()->json([

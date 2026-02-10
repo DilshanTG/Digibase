@@ -3,7 +3,6 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DatabaseController;
 use App\Http\Controllers\Api\DynamicModelController;
-use App\Http\Controllers\Api\StorageController;
 use App\Http\Controllers\Api\CoreDataController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,9 +31,6 @@ Route::middleware('throttle:10,1')->group(function () {
 Route::get('/auth/providers', [AuthController::class, 'getProviders']);
 Route::get('/auth/{provider}', [AuthController::class, 'redirectToProvider']);
 Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderCallback']);
-
-// Public file downloads (auth checked inside controller for private files)
-Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
 // ============================================================================
 // CORE DATA API (Unified)
@@ -81,15 +77,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/models/{dynamicModel}/fields', [DynamicModelController::class, 'addFields']);
     Route::put('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'updateField']);
     Route::delete('/models/{dynamicModel}/fields/{field}', [DynamicModelController::class, 'destroyField']);
-
-    // File Storage
-    Route::get('/storage/stats', [StorageController::class, 'stats']);
-    Route::get('/storage/buckets', [StorageController::class, 'buckets']);
-    Route::get('/storage', [StorageController::class, 'index']);
-    Route::post('/storage', [StorageController::class, 'store']);
-    Route::get('/storage/{file}', [StorageController::class, 'show']);
-    Route::put('/storage/{file}', [StorageController::class, 'update']);
-    Route::delete('/storage/{file}', [StorageController::class, 'destroy']);
 
     // Database Explorer
     Route::get('/database/stats', [DatabaseController::class, 'stats']);
