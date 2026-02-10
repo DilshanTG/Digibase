@@ -68,7 +68,7 @@ class UniverSheetWidget extends Widget
             'tableName' => $dynamicModel->table_name,
             'schema' => $schema,
             'tableData' => $records,
-            'saveUrl' => url('/api/data/' . $dynamicModel->table_name),
+            'saveUrl' => url('/api/v1/data/' . $dynamicModel->table_name),
             'csrfToken' => csrf_token(),
             'apiToken' => $apiKey,
         ];

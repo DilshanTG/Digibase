@@ -12,14 +12,27 @@ class ApiRateLimiter
     /**
      * Handle an incoming request with dynamic rate limiting based on API key.
      *
+     * Bypass: Authenticated Filament admin users (session auth) and requests
+     * with the X-Digibase-Internal header are never rate-limited.
+     * The admin must be a god.
+     *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // ── GOD MODE: bypass rate limit for admin panel users ──
+        if ($this->isAdminOrInternal($request)) {
+            $response = $next($request);
+
+            return $response->withHeaders([
+                'X-RateLimit-Limit' => 'unlimited',
+                'X-RateLimit-Remaining' => 'unlimited',
+            ]);
+        }
+
         $apiKey = $request->attributes->get('api_key');
-        
+
         if (!$apiKey) {
-            // Fallback to default rate limit if no API key
             return $this->applyDefaultRateLimit($request, $next);
         }
 
@@ -33,7 +46,7 @@ class ApiRateLimiter
         // Check rate limit
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
             $seconds = RateLimiter::availableIn($key);
-            
+
             return response()->json([
                 'message' => 'Too many requests. Please slow down.',
                 'retry_after' => $seconds,
@@ -63,6 +76,51 @@ class ApiRateLimiter
     }
 
     /**
+     * Check if the request comes from a logged-in Filament admin (session auth)
+     * or carries the internal bypass flag.
+     */
+    protected function isAdminOrInternal(Request $request): bool
+    {
+        // 1. Session-authenticated Filament admin user (e.g. UniverSheetWidget bulk edits)
+        if (auth()->check()) {
+            $user = auth()->user();
+
+            // Filament exposes a canAccessPanel() contract; any user that can
+            // reach the admin panel is considered an admin for rate-limit purposes.
+            if (method_exists($user, 'canAccessPanel')) {
+                // canAccessPanel expects a Panel instance; grab the default panel
+                try {
+                    $panel = \Filament\Facades\Filament::getCurrentPanel()
+                          ?? \Filament\Facades\Filament::getDefaultPanel();
+
+                    if ($panel && $user->canAccessPanel($panel)) {
+                        return true;
+                    }
+                } catch (\Throwable) {
+                    // Filament not booted yet — fall through
+                }
+            }
+
+            // Fallback: check for a simple admin flag / role
+            if (property_exists($user, 'is_admin') && $user->is_admin) {
+                return true;
+            }
+
+            if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
+                return true;
+            }
+        }
+
+        // 2. Internal flag header — only trust this from server-side requests
+        //    (the header is stripped at the edge / load-balancer level)
+        if ($request->header('X-Digibase-Internal') === config('app.key')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Apply default rate limit when no API key is present.
      */
     protected function applyDefaultRateLimit(Request $request, Closure $next): Response
@@ -73,7 +131,7 @@ class ApiRateLimiter
 
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
             $seconds = RateLimiter::availableIn($key);
-            
+
             return response()->json([
                 'message' => 'Too many requests. Please slow down.',
                 'retry_after' => $seconds,

@@ -330,12 +330,16 @@ class CoreDataController extends Controller
 
     /**
      * 🔒 TRANSACTION WRAPPER: Execute mutation in atomic transaction.
+     *
+     * Uses DB::transaction() with 5 retry attempts to handle SQLite
+     * "database is locked" errors under concurrent write load.
+     * Each retry is automatically attempted by Laravel's transaction handler.
      */
     protected function executeInTransaction(callable $callback): mixed
     {
         return DB::transaction(function () use ($callback) {
             return $callback();
-        });
+        }, 5);
     }
 
 
@@ -465,7 +469,7 @@ class CoreDataController extends Controller
 
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         $data->getCollection()->each(function ($item) use ($hiddenFields) {
-            if (property_exists($item, 'makeHidden')) {
+            if (method_exists($item, 'makeHidden')) {
                 $item->makeHidden($hiddenFields);
             }
         });
