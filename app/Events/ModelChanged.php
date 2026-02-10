@@ -4,7 +4,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -17,7 +17,7 @@ use Illuminate\Queue\SerializesModels;
  * Channel: private-data.{table}
  * Event name: model.changed
  */
-class ModelChanged implements ShouldBroadcastNow
+class ModelChanged implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

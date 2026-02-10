@@ -51,7 +51,7 @@ class UniverSheetWidget extends Widget
             $modelClass->setDynamicTable($dynamicModel->table_name);
             
             // Fetch ID + all fields defined in schema
-            $records = $modelClass->get()->toArray();
+            $records = $modelClass->limit(1000)->get()->toArray();
         } catch (\Exception $e) {
             Log::error("Univer Widget Data Error: " . $e->getMessage());
             $records = [];

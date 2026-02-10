@@ -150,16 +150,14 @@ class CoreDataController extends Controller
             $recordData = $data['record'] ?? $data;
             if (is_array($recordData)) {
                 $sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'remember_token'];
-                foreach ($sensitiveKeys as $key) {
-                    if (isset($recordData[$key])) {
-                        unset($recordData[$key]);
+                $recordData = array_filter($recordData, function ($v, $k) use ($sensitiveKeys) {
+                    $lowerKey = strtolower($k);
+                    if (in_array($lowerKey, $sensitiveKeys)) return false;
+                    foreach ($sensitiveKeys as $sensitive) {
+                        if (str_contains($lowerKey, $sensitive)) return false;
                     }
-                    foreach ($recordData as $k => $v) {
-                        if (Str::contains(strtolower($k), $sensitiveKeys)) {
-                            unset($recordData[$k]);
-                        }
-                    }
-                }
+                    return true;
+                }, ARRAY_FILTER_USE_BOTH);
             }
 
             $payload = [
