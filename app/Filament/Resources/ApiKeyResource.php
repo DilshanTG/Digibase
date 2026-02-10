@@ -28,7 +28,7 @@ class ApiKeyResource extends Resource
 
     protected static ?string $modelLabel = 'API Key';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|UnitEnum|null $navigationGroup = 'Developers';
 
     protected static ?int $navigationSort = 2;
 

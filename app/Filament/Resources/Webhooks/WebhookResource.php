@@ -24,11 +24,11 @@ class WebhookResource extends Resource
 {
     protected static ?string $model = Webhook::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationLabel = 'Webhooks';
     protected static ?string $modelLabel = 'Webhook';
     protected static ?string $pluralModelLabel = 'Webhooks';
-    protected static string|UnitEnum|null $navigationGroup = 'Integrations';
+    protected static string|UnitEnum|null $navigationGroup = 'Developers';
     protected static ?int $navigationSort = 1;
 
     public static function form(Schema $schema): Schema
