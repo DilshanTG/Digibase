@@ -19,6 +19,8 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use MWGuerra\FileManager\FileManagerPlugin;
 use Inerba\DbConfig\DbConfigPlugin;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use pxlrbt\FilamentSpotlight\SpotlightPlugin;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
@@ -53,6 +55,12 @@ class AdminPanelProvider extends PanelProvider
             )
             ->plugin(
                 DbConfigPlugin::make()
+            )
+            ->plugin(
+                FilamentShieldPlugin::make()
+            )
+            ->plugin(
+                SpotlightPlugin::make()
             )
             ->navigationItems([
                 NavigationItem::make('API Docs')

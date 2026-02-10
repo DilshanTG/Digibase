@@ -19,6 +19,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use BackedEnum;
@@ -62,6 +63,16 @@ class DataExplorer extends Page implements HasTable
                 ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
                 ->color($this->isSpreadsheet ? 'gray' : 'primary')
                 ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
+                ->visible(fn () => $this->tableId !== null),
+            ExportAction::make()
+                ->label('Export to Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->exports([
+                    \pxlrbt\FilamentExcel\Exports\ExcelExport::make()
+                        ->fromTable()
+                        ->withFilename($this->tableId . '-' . date('Y-m-d') . '.xlsx'),
+                ])
                 ->visible(fn () => $this->tableId !== null),
         ];
     }
