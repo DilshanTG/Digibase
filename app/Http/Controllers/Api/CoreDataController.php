@@ -394,22 +394,26 @@ class CoreDataController extends Controller
                 $relDef = $model->relationships()->where('name', $relationName)->first();
 
                 if ($relDef && $relDef->relatedModel) {
-                     DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
+                     // Namespace relation key with table name to prevent global
+                     // state collisions in Octane/Swoole (Bug #4 fix)
+                     $uniqueRelKey = $tableName . '__' . $relationName;
+
+                     DynamicRecord::resolveRelationUsing($uniqueRelKey, function ($instance) use ($relDef) {
                         $relatedTable = $relDef->relatedModel->table_name;
                         $foreignKey = $relDef->foreign_key;
                         $localKey = $relDef->local_key ?? 'id';
-                        
+
                         $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
 
                         if ($relDef->type === 'hasMany') {
                             $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
                             $foreignKey = $qualify($foreignKey, $relatedTable);
-                            
+
                             $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
-                        } 
+                        }
                         elseif ($relDef->type === 'belongsTo') {
                             $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
 
@@ -427,9 +431,9 @@ class CoreDataController extends Controller
                             $relation->getQuery()->from($relatedTable);
                             return $relation;
                         }
-                        return null; 
+                        return null;
                      });
-                     $query->with($relationName);
+                     $query->with($uniqueRelKey);
                 }
             }
         }
@@ -515,7 +519,11 @@ class CoreDataController extends Controller
                 $relDef = $model->relationships()->where('name', $relationName)->first();
 
                 if ($relDef && $relDef->relatedModel) {
-                     DynamicRecord::resolveRelationUsing($relationName, function ($instance) use ($relDef) {
+                     // Namespace relation key with table name to prevent global
+                     // state collisions in Octane/Swoole (Bug #4 fix)
+                     $uniqueRelKey = $tableName . '__' . $relationName;
+
+                     DynamicRecord::resolveRelationUsing($uniqueRelKey, function ($instance) use ($relDef) {
                         $relatedTable = $relDef->relatedModel->table_name;
                         $foreignKey = $relDef->foreign_key;
                         $localKey = $relDef->local_key ?? 'id';
@@ -531,7 +539,7 @@ class CoreDataController extends Controller
                             return $relation;
                         } elseif ($relDef->type === 'belongsTo') {
                             $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-                            
+
                             $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
                             $relation->getRelated()->setTable($relatedTable);
                             $relation->getQuery()->from($relatedTable);
@@ -546,7 +554,7 @@ class CoreDataController extends Controller
                             return $relation;
                         }
                      });
-                     $query->with($relationName);
+                     $query->with($uniqueRelKey);
                 }
             }
         }

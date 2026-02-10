@@ -15,6 +15,7 @@ class ApiKey extends Model
         'user_id',
         'name',
         'key',
+        'key_hash',         // SHA-256 of key for indexed O(1) lookup
         'type',             // 'public' or 'secret'
         'scopes',           // JSON array: ['read', 'write', 'delete']
         'allowed_tables',   // JSON array: ['posts', 'comments'] or null/empty for all
@@ -35,6 +36,36 @@ class ApiKey extends Model
     protected $hidden = [
         'key', // Never expose the full key in responses
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (ApiKey $apiKey) {
+            // Auto-compute key_hash whenever the key is set or changed
+            if ($apiKey->isDirty('key') && $apiKey->key) {
+                $apiKey->key_hash = hash('sha256', $apiKey->key);
+            }
+        });
+    }
+
+    /**
+     * Find an API key by its plain-text token using indexed hash lookup.
+     * Returns null if not found or inactive.
+     */
+    public static function findByToken(string $token): ?self
+    {
+        $hash = hash('sha256', $token);
+
+        $apiKey = static::where('key_hash', $hash)
+            ->where('is_active', true)
+            ->first();
+
+        // Final constant-time verification to prevent any hash collision attack
+        if ($apiKey && hash_equals($apiKey->key, $token)) {
+            return $apiKey;
+        }
+
+        return null;
+    }
 
     /**
      * The user who owns this API key.
