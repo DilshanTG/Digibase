@@ -22,6 +22,7 @@ use Inerba\DbConfig\DbConfigPlugin;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use pxlrbt\FilamentSpotlight\SpotlightPlugin;
 use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
+use Jeffgreco13\FilamentBreezy\BreezyCore;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
@@ -72,6 +73,17 @@ class AdminPanelProvider extends PanelProvider
                     ->noTimeout()
                     ->authorize(fn () => auth()->check() && auth()->id() === 1)
             )
+            ->plugin(
+                BreezyCore::make()
+                    ->myProfile(
+                        shouldRegisterUserMenu: true,
+                        shouldRegisterNavigation: false,
+                        hasAvatars: true,
+                        slug: 'my-profile'
+                    )
+                    ->enableTwoFactorAuthentication()
+            )
+            ->databaseNotifications()
             ->navigationItems([
                 NavigationItem::make('API Docs')
                     ->url('/docs/api')
