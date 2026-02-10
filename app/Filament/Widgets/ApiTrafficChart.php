@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\DB;
 
 class ApiTrafficChart extends ChartWidget
 {
-    protected static ?string $heading = 'API Traffic (Last 24 Hours)';
+    protected ?string $heading = 'API Traffic (Last 24 Hours)';
 
     protected static ?int $sort = 10;
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $pollingInterval = '15s';
+    protected ?string $pollingInterval = '15s';
 
     protected function getType(): string
     {

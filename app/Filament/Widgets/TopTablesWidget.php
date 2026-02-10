@@ -8,15 +8,15 @@ use Illuminate\Support\Facades\DB;
 
 class TopTablesWidget extends ChartWidget
 {
-    protected static ?string $heading = 'Most Accessed Tables (Last 7 Days)';
+    protected ?string $heading = 'Most Accessed Tables (Last 7 Days)';
 
     protected static ?int $sort = 12;
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $pollingInterval = '15s';
+    protected ?string $pollingInterval = '15s';
 
-    protected static ?string $maxHeight = '300px';
+    protected ?string $maxHeight = '300px';
 
     protected function getType(): string
     {

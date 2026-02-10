@@ -32,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->configureBranding();
+        $this->configureStorage();
     }
 
     private function configureBranding(): void
@@ -75,6 +76,53 @@ class AppServiceProvider extends ServiceProvider
             });
         } catch (\Exception) {
             return;
+        }
+    }
+
+    /**
+     * ☁️ UNIVERSAL STORAGE ADAPTER: Dynamic filesystem configuration.
+     * Loads settings from DB and configures the 'digibase_storage' disk.
+     */
+    private function configureStorage(): void
+    {
+        try {
+            if (!class_exists(\App\Models\SystemSetting::class)) return;
+
+            $driver = \App\Models\SystemSetting::get('storage.driver', 'local');
+            $diskConfig = [];
+
+            if ($driver === 'local') {
+                $diskConfig = [
+                    'driver' => 'local',
+                    'root' => storage_path('app/public'),
+                    'url' => env('APP_URL').'/storage',
+                    'visibility' => 'public',
+                    'throw' => false,
+                ];
+            } else {
+                // S3 Compatible (AWS, R2, Spaces, MinIO)
+                $diskConfig = [
+                    'driver' => 's3',
+                    'key' => \App\Models\SystemSetting::get('storage.access_key'),
+                    'secret' => \App\Models\SystemSetting::get('storage.secret_key'),
+                    'region' => \App\Models\SystemSetting::get('storage.region', 'us-east-1'),
+                    'bucket' => \App\Models\SystemSetting::get('storage.bucket'),
+                    'endpoint' => \App\Models\SystemSetting::get('storage.endpoint'),
+                    'use_path_style_endpoint' => \App\Models\SystemSetting::get('storage.use_path_style') === 'true',
+                    'url' => \App\Models\SystemSetting::get('storage.public_url'),
+                    'visibility' => 'public', // Default to public for now, or control per file
+                    'throw' => false,
+                ];
+            }
+
+            // Register the dynamic disk
+            config(['filesystems.disks.digibase_storage' => $diskConfig]);
+            
+            // Set as default if needed, or just ensure our controllers use it
+            // config(['filesystems.default' => 'digibase_storage']); 
+
+        } catch (\Exception $e) {
+            // Fallback to local if DB fails
         }
     }
 }

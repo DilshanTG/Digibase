@@ -4,8 +4,8 @@ namespace App\Filament\Pages;
 
 use App\Models\DynamicModel;
 use App\Services\CodeGeneratorService;
-use Filament\Forms\Components\Actions;
-use Filament\Forms\Components\Actions\Action;
+use Filament\Schemas\Components\Actions;
+use Filament\Actions\Action;
 use Filament\Forms\Components\MarkdownEditor;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;

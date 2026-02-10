@@ -2,9 +2,9 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DatabaseController;
-use App\Http\Controllers\Api\DynamicDataController;
 use App\Http\Controllers\Api\DynamicModelController;
 use App\Http\Controllers\Api\StorageController;
+use App\Http\Controllers\Api\CoreDataController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -37,43 +37,38 @@ Route::get('/auth/{provider}/callback', [AuthController::class, 'handleProviderC
 Route::get('/storage/{file}/download', [StorageController::class, 'download'])->name('storage.download');
 
 // ============================================================================
-// CORE DATA API v1 - Protected by Iron Dome (API Key Middleware)
+// CORE DATA API (Unified)
 // ============================================================================
-// 🛡️ Iron Dome: API key validation with scopes
-// 🩺 Schema Doctor: Dynamic validation rules
-// ⚡ Turbo Cache: Automated caching/invalidation
-// 📡 Live Wire: Real-time broadcasting via DynamicRecordObserver
-// 🔒 Transaction Wrapper: Atomic operations
-// 🎯 Type-Safe Casting: Strict type enforcement
-// 🚦 Rate Limiting: Dynamic per-key limits from api_keys table
+// 🛡️ Iron Dome: API key validation
+// 🩺 Schema Doctor: Validation
+// ⚡ Turbo Cache: Caching
+// 📡 Live Wire: Real-time
 // ============================================================================
+
+// V1 Prefix
 Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::class, App\Http\Middleware\LogApiActivity::class])->group(function () {
-    // Read operations (pk_ or sk_ keys with 'read' scope)
-    Route::get('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'index']);
-    Route::get('/data/{tableName}/schema', [App\Http\Controllers\Api\CoreDataController::class, 'schema']);
-    Route::get('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'show']);
+    Route::get('/data/{tableName}', [CoreDataController::class, 'index']);
+    Route::get('/data/{tableName}/schema', [CoreDataController::class, 'schema']);
+    Route::get('/data/{tableName}/{id}', [CoreDataController::class, 'show']);
     
-    // Write operations (sk_ keys only with 'write' scope)
-    Route::post('/data/{tableName}', [App\Http\Controllers\Api\CoreDataController::class, 'store']);
-    Route::put('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'update']);
-    
-    // Delete operations (sk_ keys only with 'delete' scope)
-    Route::delete('/data/{tableName}/{id}', [App\Http\Controllers\Api\CoreDataController::class, 'destroy']);
+    Route::post('/data/{tableName}', [CoreDataController::class, 'store']);
+    Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
+    Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
 });
 
-// ============================================================================
-// LEGACY API (Backward Compatibility) - Will be deprecated in v2
-// ============================================================================
-Route::middleware(['api.key', 'throttle:60,1'])->group(function () {
-    Route::get('/data/{tableName}', [DynamicDataController::class, 'index']);
-    Route::get('/data/{tableName}/{id}', [DynamicDataController::class, 'show']);
-    Route::get('/data/{tableName}/schema', [DynamicDataController::class, 'schema']);
-    Route::post('/data/{tableName}', [DynamicDataController::class, 'store']);
-    Route::put('/data/{tableName}/{id}', [DynamicDataController::class, 'update']);
-    Route::delete('/data/{tableName}/{id}', [DynamicDataController::class, 'destroy']);
+// LEGACY COMPATIBILITY ROUTING (Mapped to CoreDataController)
+// Note: We maintain these routes but point them to the new engine.
+Route::middleware(['api.key', 'throttle:60,1', App\Http\Middleware\ApiRateLimiter::class])->group(function () {
+    Route::get('/data/{tableName}', [CoreDataController::class, 'index']);
+    Route::get('/data/{tableName}/schema', [CoreDataController::class, 'schema']);
+    Route::get('/data/{tableName}/{id}', [CoreDataController::class, 'show']);
+    
+    Route::post('/data/{tableName}', [CoreDataController::class, 'store']);
+    Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
+    Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
 });
 
-// Protected routes
+// Protected routes (Sanctum)
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -105,6 +100,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::put('/database/tables/{tableName}/rows/{id}', [DatabaseController::class, 'updateRow']);
     Route::delete('/database/tables/{tableName}/rows/{id}', [DatabaseController::class, 'deleteRow']);
     Route::post('/database/query', [DatabaseController::class, 'query']);
+    
     // Code Generator
     Route::post('/code/generate', [\App\Http\Controllers\Api\CodeGeneratorController::class, 'generate']);
 

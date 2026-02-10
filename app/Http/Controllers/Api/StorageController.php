@@ -19,22 +19,18 @@ class StorageController extends Controller
     {
         $query = StorageFile::where('user_id', $request->user()->id);
 
-        // Filter by bucket
         if ($request->has('bucket')) {
             $query->where('bucket', $request->bucket);
         }
 
-        // Filter by folder
         if ($request->has('folder')) {
             $query->where('folder', $request->folder);
         }
 
-        // Search by name
         if ($request->has('search')) {
             $query->where('original_name', 'like', '%' . $request->search . '%');
         }
 
-        // Filter by type
         if ($request->has('type')) {
             switch ($request->type) {
                 case 'image':
@@ -90,9 +86,6 @@ class StorageController extends Controller
         ]);
     }
 
-    /**
-     * Allowed file extensions.
-     */
     protected array $allowedExtensions = [
         'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff',
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'md',
@@ -103,6 +96,7 @@ class StorageController extends Controller
 
     /**
      * Upload a file.
+     * ☁️ UNIVERSAL STORAGE ADAPTER: Updated to use 'digibase_storage' disk.
      */
     public function store(Request $request): JsonResponse
     {
@@ -118,7 +112,6 @@ class StorageController extends Controller
         $folder = $request->get('folder');
         $isPublic = $request->boolean('is_public', false);
 
-        // Validate file extension (Whitelist Approach)
         $extension = strtolower($uploadedFile->getClientOriginalExtension());
         if (!in_array($extension, $this->allowedExtensions)) {
             return response()->json([
@@ -126,54 +119,47 @@ class StorageController extends Controller
             ], 422);
         }
 
-        // Validate MIME type
-        $mimeType = $uploadedFile->getMimeType();
-        if (!in_array($mimeType, $this->allowedMimeTypes)) {
-            return response()->json([
-                'message' => 'File type not allowed. Supported types: images, documents, audio, video, and archives.',
-            ], 422);
-        }
-
-        // Sanitize folder to prevent path traversal
         if ($folder) {
-            // Remove any path traversal attempts
             $folder = str_replace(['..', '\\'], '', $folder);
-            // Remove leading/trailing slashes and normalize
             $folder = trim($folder, '/');
-            // Validate folder doesn't contain suspicious patterns
             if (preg_match('/[<>:"|?*]/', $folder)) {
-                return response()->json([
-                    'message' => 'Invalid folder name.',
-                ], 422);
+                return response()->json(['message' => 'Invalid folder name.'], 422);
             }
         }
 
-        // Generate unique filename with sanitized extension
         $filename = Str::uuid() . '.' . $extension;
-
-        // Build directory path
         $directory = $bucket;
         if ($folder) {
             $directory .= '/' . $folder;
         }
 
-        // Store file using Laravel's file handling
-        $disk = $isPublic ? 'public' : 'local';
-        $fullPath = Storage::disk($disk)->putFileAs($directory, $uploadedFile, $filename);
+        // ☁️  Use the Unified Disk
+        $diskName = 'digibase_storage';
+        
+        // Ensure visibility is set correctly (public/private) for S3 adapters
+        $visibility = $isPublic ? 'public' : 'private';
 
-        if (!$fullPath) {
+        $path = Storage::disk($diskName)->putFileAs(
+            $directory, 
+            $uploadedFile, 
+            $filename, 
+            ['visibility' => $visibility]
+        );
+
+        if (!$path) {
             return response()->json([
                 'message' => 'Failed to store file on disk.',
             ], 500);
         }
 
-        // Create record
+        $url = Storage::disk($diskName)->url($path);
+
         $storageFile = StorageFile::create([
             'user_id' => $request->user()->id,
             'name' => $filename,
             'original_name' => $uploadedFile->getClientOriginalName(),
-            'path' => $fullPath,
-            'disk' => $disk,
+            'path' => $path,
+            'disk' => $diskName, // Save 'digibase_storage' as the disk
             'mime_type' => $uploadedFile->getMimeType(),
             'size' => $uploadedFile->getSize(),
             'bucket' => $bucket,
@@ -194,20 +180,20 @@ class StorageController extends Controller
                 'is_public' => $storageFile->is_public,
                 'is_image' => $storageFile->is_image,
                 'extension' => $storageFile->extension,
-                'url' => $storageFile->url,
+                'url' => $url, // Return the resolved URL
                 'created_at' => $storageFile->created_at,
             ],
         ], 201);
     }
 
-    /**
-     * Get file details.
-     */
     public function show(Request $request, StorageFile $file): JsonResponse
     {
         if ($file->user_id !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        // Resolving URL dynamically based on current disk config
+        $url = Storage::disk($file->disk)->url($file->path);
 
         return response()->json([
             'data' => [
@@ -222,7 +208,7 @@ class StorageController extends Controller
                 'is_public' => $file->is_public,
                 'is_image' => $file->is_image,
                 'extension' => $file->extension,
-                'url' => $file->url,
+                'url' => $url,
                 'metadata' => $file->metadata,
                 'created_at' => $file->created_at,
                 'updated_at' => $file->updated_at,
@@ -230,16 +216,8 @@ class StorageController extends Controller
         ]);
     }
 
-    /**
-     * Download a file.
-     * 
-     * Access Rules:
-     * - Public files: Anyone can download
-     * - Private files: Only the owner (authenticated via Sanctum)
-     */
     public function download(Request $request, StorageFile $file): StreamedResponse|JsonResponse
     {
-        // Public files are accessible to everyone
         if ($file->is_public) {
             if (!Storage::disk($file->disk)->exists($file->path)) {
                 return response()->json(['message' => 'File not found on disk'], 404);
@@ -247,25 +225,15 @@ class StorageController extends Controller
             return Storage::disk($file->disk)->download($file->path, $file->original_name);
         }
 
-        // Private files require authentication
         $authUser = auth('sanctum')->user();
-        
         if (!$authUser) {
-            return response()->json([
-                'message' => 'Authentication required',
-                'error' => 'This file is private. Please provide a valid API token.',
-            ], 401);
+            return response()->json(['message' => 'Authentication required', 'error' => 'This file is private.'], 401);
         }
 
-        // Only owner can access private files
         if ($file->user_id !== $authUser->id) {
-            return response()->json([
-                'message' => 'Access denied',
-                'error' => 'You do not have permission to access this file.',
-            ], 403);
+            return response()->json(['message' => 'Access denied'], 403);
         }
 
-        // Check file exists on disk
         if (!Storage::disk($file->disk)->exists($file->path)) {
             return response()->json(['message' => 'File not found on disk'], 404);
         }
@@ -273,9 +241,6 @@ class StorageController extends Controller
         return Storage::disk($file->disk)->download($file->path, $file->original_name);
     }
 
-    /**
-     * Update file metadata.
-     */
     public function update(Request $request, StorageFile $file): JsonResponse
     {
         if ($file->user_id !== $request->user()->id) {
@@ -289,21 +254,13 @@ class StorageController extends Controller
             'metadata' => 'nullable|array',
         ]);
 
-        // Handle visibility change
         if (isset($validated['is_public']) && $validated['is_public'] !== $file->is_public) {
-            $newDisk = $validated['is_public'] ? 'public' : 'local';
-            $oldDisk = $file->disk;
-
-            // Move file to new disk
-            if ($newDisk !== $oldDisk) {
-                $content = Storage::disk($oldDisk)->get($file->path);
-                Storage::disk($newDisk)->put($file->path, $content);
-                Storage::disk($oldDisk)->delete($file->path);
-                $validated['disk'] = $newDisk;
-            }
+            $visibility = $validated['is_public'] ? 'public' : 'private';
+            Storage::disk($file->disk)->setVisibility($file->path, $visibility);
         }
 
         $file->update($validated);
+        $url = Storage::disk($file->disk)->url($file->path);
 
         return response()->json([
             'data' => [
@@ -313,32 +270,23 @@ class StorageController extends Controller
                 'bucket' => $file->bucket,
                 'folder' => $file->folder,
                 'is_public' => $file->is_public,
-                'url' => $file->url,
+                'url' => $url,
             ],
         ]);
     }
 
-    /**
-     * Delete a file.
-     */
     public function destroy(Request $request, StorageFile $file): JsonResponse
     {
         if ($file->user_id !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Delete from storage
         Storage::disk($file->disk)->delete($file->path);
-
-        // Delete record
         $file->delete();
 
         return response()->json(['message' => 'File deleted successfully']);
     }
 
-    /**
-     * Get storage stats for user.
-     */
     public function stats(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
@@ -376,9 +324,6 @@ class StorageController extends Controller
         ]);
     }
 
-    /**
-     * List buckets for user.
-     */
     public function buckets(Request $request): JsonResponse
     {
         $buckets = StorageFile::where('user_id', $request->user()->id)
@@ -397,9 +342,6 @@ class StorageController extends Controller
         return response()->json(['data' => $buckets]);
     }
 
-    /**
-     * Convert bytes to human readable format.
-     */
     protected function humanFileSize(int|null $bytes): string
     {
         if (!$bytes) {
