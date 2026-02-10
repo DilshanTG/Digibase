@@ -5,7 +5,7 @@ namespace App\Filament\Pages;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Section;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use App\Models\SystemSetting;
@@ -38,7 +38,7 @@ class StorageSettings extends Page implements HasForms
         ]);
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([

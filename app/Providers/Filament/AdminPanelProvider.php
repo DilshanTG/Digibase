@@ -69,7 +69,7 @@ class AdminPanelProvider extends PanelProvider
                 NavigationItem::make('API Docs')
                     ->url('/docs/api')
                     ->icon('heroicon-o-book-open')
-                    ->group('Integrations')
+                    ->group('Developers')
                     ->sort(99)
                     ->openUrlInNewTab(),
                 NavigationItem::make('Log Viewer')
