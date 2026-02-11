@@ -46,12 +46,13 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->maxContentWidth('full')
             ->navigationGroups([
-                'Administration',
-                'Database',
-                'Developers',
-                'Settings',
+                'Data Engine',
+                'API & Integration',
+                'Monitoring & Logs',
+                'Settings & Access',
                 'System',
             ])
+            ->collapsibleNavigationGroups(true)
             ->plugin(
                 FileManagerPlugin::make([
                     \MWGuerra\FileManager\Filament\Pages\FileManager::class,
@@ -64,6 +65,7 @@ class AdminPanelProvider extends PanelProvider
             )
             ->plugin(
                 FilamentShieldPlugin::make()
+                    ->navigationGroup('Settings & Access')
             )
             ->plugin(
                 SpotlightPlugin::make()
@@ -99,13 +101,13 @@ class AdminPanelProvider extends PanelProvider
                 NavigationItem::make('Pulse Monitor')
                     ->url('/pulse', shouldOpenInNewTab: true)
                     ->icon('heroicon-o-heart')
-                    ->group('System')
+                    ->group('Monitoring & Logs')
                     ->sort(99)
                     ->visible(fn () => auth()->check() && auth()->id() === 1),
                 NavigationItem::make('Log Viewer')
                     ->url(url('/log-viewer'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-bug-ant')
-                    ->group('System')
+                    ->group('Monitoring & Logs')
                     ->sort(100)
                     ->visible(fn () => auth()->check() && (auth()->id() === 1 || auth()->user()->is_admin ?? false)),
             ])

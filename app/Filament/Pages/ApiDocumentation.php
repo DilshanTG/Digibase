@@ -15,8 +15,8 @@ class ApiDocumentation extends Page
 {
     protected string $view = 'filament.pages.api-documentation';
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-book-open';
-    protected static string|UnitEnum|null $navigationGroup = 'Developer';
-    protected static ?int $navigationSort = 1;
+    protected static string|UnitEnum|null $navigationGroup = 'API & Integration';
+    protected static ?int $navigationSort = 3;
     protected static ?string $title = 'API Documentation';
 
     public ?int $selectedModelId = null;

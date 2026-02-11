@@ -32,10 +32,10 @@ class DynamicModelResource extends Resource
 {
     protected static ?string $model = DynamicModel::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-circle-stack';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cube';
     protected static ?string $navigationLabel = 'Table Builder';
     protected static ?string $modelLabel = 'Database Table';
-    protected static string|UnitEnum|null $navigationGroup = 'Database';
+    protected static string|UnitEnum|null $navigationGroup = 'Data Engine';
     protected static ?int $navigationSort = 1;
 
     public static function form(Schema $form): Schema

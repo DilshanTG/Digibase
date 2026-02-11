@@ -10,3 +10,7 @@ Artisan::command('inspire', function () {
 
 // 📉 Auto-Pruning Scheduler
 Schedule::command('api:prune-analytics')->daily();
+
+// 🗄️ Backup Schedules
+Schedule::command('backup:clean')->daily();
+Schedule::command('backup:run')->daily();

@@ -24,13 +24,16 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use BackedEnum;
 use UnitEnum;
+use Filament\Forms\Components\FileUpload;
+use Illuminate\Support\Facades\Storage;
+use Filament\Notifications\Notification;
 
 class DataExplorer extends Page implements HasTable
 {
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-table-cells';
-    protected static string|UnitEnum|null $navigationGroup = 'Database';
+    protected static string|UnitEnum|null $navigationGroup = 'Data Engine';
     protected static ?int $navigationSort = 2;
     protected static ?string $title = 'Data Explorer';
     protected static bool $shouldRegisterNavigation = true;
@@ -63,6 +66,89 @@ class DataExplorer extends Page implements HasTable
                 ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
                 ->color($this->isSpreadsheet ? 'gray' : 'primary')
                 ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
+                ->visible(fn () => $this->tableId !== null),
+            Action::make('import')
+                ->label('Import CSV')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('warning')
+                ->form([
+                    FileUpload::make('file')
+                        ->label('CSV File')
+                        ->acceptedFileTypes(['text/csv', 'text/plain', 'application/vnd.ms-excel'])
+                        ->disk('local')
+                        ->directory('temp-imports')
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    $dynamicModel = DynamicModel::find($this->tableId);
+                    if (!$dynamicModel) return;
+
+                    $path = Storage::disk('local')->path($data['file']);
+                    
+                    if (!file_exists($path)) {
+                        Notification::make()->title('File not found')->danger()->send();
+                        return;
+                    }
+
+                    $handle = fopen($path, 'r');
+                    $header = fgetcsv($handle);
+                    
+                    if (!$header) {
+                        Notification::make()->title('Empty or invalid CSV')->danger()->send();
+                        return;
+                    }
+                    
+                    $count = 0;
+                    while (($row = fgetcsv($handle)) !== false) {
+                        if (count($header) !== count($row)) continue;
+                        
+                        $recordData = array_combine($header, $row);
+                        
+                        $record = new DynamicRecord();
+                        $record->setTable($dynamicModel->table_name);
+                        
+                        foreach ($recordData as $key => $value) {
+                             if ($value === '' || $value === null) $value = null;
+                             $record->{$key} = $value;
+                        }
+                        
+                        try {
+                            $record->save();
+                            $count++;
+                        } catch (\Exception $e) {
+                            // Continue on error
+                        }
+                    }
+                    
+                    fclose($handle);
+                    Storage::disk('local')->delete($data['file']);
+                    
+                    Notification::make()
+                        ->title("Imported {$count} records successfully")
+                        ->success()
+                        ->send();
+                })
+                ->visible(fn () => $this->tableId !== null),
+            Action::make('downloadTemplate')
+                ->label('Download Template')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(function () {
+                    $dynamicModel = DynamicModel::find($this->tableId);
+                    if (!$dynamicModel) return;
+
+                    $headers = $dynamicModel->fields->pluck('name')->toArray();
+                    
+                    if (empty($headers)) {
+                        $headers = ['name', 'created_at']; 
+                    }
+
+                    return response()->streamDownload(function () use ($headers) {
+                        $handle = fopen('php://output', 'w');
+                        fputcsv($handle, $headers);
+                        fclose($handle);
+                    }, $dynamicModel->table_name . '-template.csv');
+                })
                 ->visible(fn () => $this->tableId !== null),
             ExportAction::make()
                 ->label('Export to Excel')

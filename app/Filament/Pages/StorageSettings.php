@@ -16,7 +16,7 @@ class StorageSettings extends Page implements HasForms
     use InteractsWithForms;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cloud';
-    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Access';
     protected static ?string $title = 'Storage Configuration';
     protected static ?string $navigationLabel = 'Storage';
     protected static ?string $slug = 'settings/storage';

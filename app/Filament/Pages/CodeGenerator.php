@@ -26,8 +26,8 @@ class CodeGenerator extends Page implements HasForms
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-code-bracket';
     protected static ?string $navigationLabel = 'Code Generator';
     protected static ?string $title = 'Code Generator';
-    protected static string|UnitEnum|null $navigationGroup = 'Integrations';
-    protected static ?int $navigationSort = 2;
+    protected static string|UnitEnum|null $navigationGroup = 'API & Integration';
+    protected static ?int $navigationSort = 4;
     protected string $view = 'filament.pages.code-generator';
 
     public ?int $model_id = null;
