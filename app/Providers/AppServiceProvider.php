@@ -10,10 +10,19 @@ use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\ServiceProvider;
 use App\Models\DynamicRecord;
 use App\Observers\DynamicRecordObserver;
 use Laravel\Pulse\Facades\Pulse;
+use Spatie\Health\Facades\Health;
+use Spatie\Health\Checks\Checks\OptimizedAppCheck;
+use Spatie\Health\Checks\Checks\DebugModeCheck;
+use Spatie\Health\Checks\Checks\EnvironmentCheck;
+use Spatie\Health\Checks\Checks\DatabaseCheck;
+use Spatie\Health\Checks\Checks\UsedDiskSpaceCheck;
+use App\Settings\GeneralSettings;
+use App\Models\SystemSetting;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,6 +41,9 @@ class AppServiceProvider extends ServiceProvider
 
         // 🩺 MONITORING: Pulse Dashboard Access Control
         $this->configurePulseSecurity();
+
+        // 🩺 HEALTH: System Health Checks
+        $this->configureHealthChecks();
 
         Scramble::extendOpenApi(function (OpenApi $openApi) {
             $openApi->secure(
@@ -60,6 +72,33 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('viewPulse', function ($user) {
             return $user->id === 1;
         });
+    }
+
+    /**
+     * 🩺 HEALTH CHECKS: Register system health monitoring.
+     * Dashboard available via Filament Health plugin.
+     */
+    private function configureHealthChecks(): void
+    {
+        $isProduction = app()->environment('production', 'staging');
+
+        $checks = [
+            DebugModeCheck::new()
+                ->expectedToBe(!$isProduction),
+            EnvironmentCheck::new()
+                ->expectEnvironment(app()->environment()),
+            DatabaseCheck::new(),
+            UsedDiskSpaceCheck::new()
+                ->warnWhenUsedSpaceIsAbovePercentage(70)
+                ->failWhenUsedSpaceIsAbovePercentage(90),
+        ];
+
+        // Optimized App only matters in production (caching configs/routes)
+        if ($isProduction) {
+            $checks[] = OptimizedAppCheck::new();
+        }
+
+        Health::checks($checks);
     }
 
     private function configureBranding(): void
@@ -113,9 +152,48 @@ class AppServiceProvider extends ServiceProvider
     private function configureStorage(): void
     {
         try {
-            if (!class_exists(\App\Models\SystemSetting::class)) return;
+            // Early return if settings table doesn't exist yet
+            if (!Schema::hasTable('spatie_settings')) return;
 
-            $driver = \App\Models\SystemSetting::get('storage_driver', 'local');
+            $settings = app(GeneralSettings::class);
+
+            // 🚀 MIGRATION: Migrate legacy SystemSettings if needed
+            try {
+                if (Schema::hasTable('system_settings') && \Illuminate\Support\Facades\DB::table('system_settings')->count() > 0 && \Illuminate\Support\Facades\DB::table('spatie_settings')->where('group', 'general')->doesntExist()) {
+                    $legacy = \Illuminate\Support\Facades\DB::table('system_settings')->pluck('value', 'key');
+                    
+                    $settings->storage_driver = $legacy['storage_driver'] ?? 'local';
+                    $settings->aws_access_key_id = $legacy['aws_access_key_id'] ?? null;
+                    
+                    try {
+                        $settings->aws_secret_access_key = isset($legacy['aws_secret_access_key']) 
+                            ? Crypt::decryptString($legacy['aws_secret_access_key']) 
+                            : null;
+                    } catch (\Exception $e) {
+                        // If decryption fails, likely stored as plain text or invalid. Keep raw or null.
+                        // Assuming raw if decryption fails is risky but better than crash. 
+                        // Actually, if it fails, let's leave it null or try raw? 
+                        // Let's fallback to null safely to allow admin to reset it.
+                        \Illuminate\Support\Facades\Log::warning("Failed to decrypt aws_secret_access_key during migration: " . $e->getMessage());
+                        $settings->aws_secret_access_key = null;
+                    }
+
+                    $settings->aws_default_region = $legacy['aws_default_region'] ?? 'us-east-1';
+                    $settings->aws_bucket = $legacy['aws_bucket'] ?? null;
+                    $settings->aws_endpoint = $legacy['aws_endpoint'] ?? null;
+                    $settings->aws_use_path_style = $legacy['aws_use_path_style'] ?? 'false';
+                    $settings->aws_url = $legacy['aws_url'] ?? null;
+                    
+                    $settings->save();
+                    
+                    // Drop the old table to complete the migration
+                    Schema::dropIfExists('system_settings');
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Settings migration failed: " . $e->getMessage());
+            }
+
+            $driver = $settings->storage_driver ?? 'local';
             
             // Build the configuration for our dynamic 'digibase_storage' disk
             $storageConfig = [
@@ -127,13 +205,13 @@ class AppServiceProvider extends ServiceProvider
 
             if ($driver === 's3') {
                 $storageConfig = array_merge($storageConfig, [
-                    'key' => \App\Models\SystemSetting::get('aws_access_key_id'),
-                    'secret' => \App\Models\SystemSetting::get('aws_secret_access_key'),
-                    'region' => \App\Models\SystemSetting::get('aws_default_region', 'us-east-1'),
-                    'bucket' => \App\Models\SystemSetting::get('aws_bucket'),
-                    'endpoint' => \App\Models\SystemSetting::get('aws_endpoint'),
-                    'use_path_style_endpoint' => \App\Models\SystemSetting::get('aws_use_path_style') === 'true',
-                    'url' => \App\Models\SystemSetting::get('aws_url'),
+                    'key' => $settings->aws_access_key_id,
+                    'secret' => $settings->aws_secret_access_key,
+                    'region' => $settings->aws_default_region,
+                    'bucket' => $settings->aws_bucket,
+                    'endpoint' => $settings->aws_endpoint,
+                    'use_path_style_endpoint' => $settings->aws_use_path_style === 'true',
+                    'url' => $settings->aws_url,
                 ]);
 
                 // Also update default s3 and default disk for global Laravel operations
@@ -150,8 +228,11 @@ class AppServiceProvider extends ServiceProvider
             // 🚀 Register the critical 'digibase_storage' disk used by the Core Engine
             config(['filesystems.disks.digibase_storage' => $storageConfig]);
 
+            // 🚀 FORCE Livewire to use our storage disk for temp uploads to ensure visibility & S3 compatibility
+            config(['livewire.temporary_file_upload.disk' => 'digibase_storage']);
+
         } catch (\Exception $e) {
-            // Silence is golden during early boot/migrations
+             \Illuminate\Support\Facades\Log::error("Failed to configure storage: " . $e->getMessage());
         }
     }
 }

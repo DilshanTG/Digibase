@@ -1,0 +1,1579 @@
+{
+  "info": {
+    "name": "Digibase API",
+    "_postman_id": "digibase-api-collection",
+    "description": "API collection for Digibase - a dynamic database management platform with authentication, dynamic models, database explorer, and more.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "pk_0dwUvsUlra7AeGmkgXXJjBC3HjheSaMq",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Public authentication endpoints for user registration, login, and password management.",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/register",
+            "description": "Register a new user account. Returns user data and authentication token."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/login",
+            "description": "Authenticate user and receive access token."
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/forgot-password",
+            "description": "Request a password reset link to be sent to the user's email."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token-here\",\n  \"email\": \"john@example.com\",\n  \"password\": \"newpassword123\",\n  \"password_confirmation\": \"newpassword123\"\n}"
+            },
+            "url": "{{baseUrl}}/reset-password",
+            "description": "Reset user password using the token received via email."
+          }
+        },
+        {
+          "name": "Get Public Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/settings/public",
+            "description": "Get public application settings including branding and enabled features."
+          }
+        },
+        {
+          "name": "Get OAuth Providers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/providers",
+            "description": "Get list of available OAuth providers (Google, GitHub)."
+          }
+        },
+        {
+          "name": "OAuth Redirect",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/:provider",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                ":provider"
+              ],
+              "variable": [
+                {
+                  "key": "provider",
+                  "value": "google",
+                  "description": "OAuth provider (google or github)"
+                }
+              ]
+            },
+            "description": "Redirect to OAuth provider for authentication."
+          }
+        },
+        {
+          "name": "OAuth Callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/:provider/callback",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                ":provider",
+                "callback"
+              ],
+              "variable": [
+                {
+                  "key": "provider",
+                  "value": "google",
+                  "description": "OAuth provider (google or github)"
+                }
+              ]
+            },
+            "description": "Handle OAuth provider callback after authentication."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/user",
+            "description": "Get the currently authenticated user's information. Requires authentication."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/logout",
+            "description": "Logout the current user and invalidate the access token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Core Data API (v1)",
+      "description": "Core Data API endpoints with API key authentication. Provides CRUD operations for dynamic tables.",
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          {
+            "key": "key",
+            "value": "X-API-Key",
+            "type": "string"
+          },
+          {
+            "key": "value",
+            "value": "{{apiKey}}",
+            "type": "string"
+          },
+          {
+            "key": "in",
+            "value": "header",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "List Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName?page=1&per_page=25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Number of records per page (max 100)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table to query"
+                }
+              ]
+            },
+            "description": "Get paginated list of records from a table."
+          }
+        },
+        {
+          "name": "Get Table Schema",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName/schema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName",
+                "schema"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                }
+              ]
+            },
+            "description": "Get the schema/structure of a table including columns and their types."
+          }
+        },
+        {
+          "name": "Get Single Record",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                },
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Record ID"
+                }
+              ]
+            },
+            "description": "Get a single record by ID from a table."
+          }
+        },
+        {
+          "name": "Create Record",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Record\",\n  \"content\": \"Record content here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                }
+              ]
+            },
+            "description": "Create a new record in a table."
+          }
+        },
+        {
+          "name": "Update Record",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"Updated content\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                },
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Record ID"
+                }
+              ]
+            },
+            "description": "Update an existing record by ID."
+          }
+        },
+        {
+          "name": "Delete Record",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/:tableName/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                ":tableName",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                },
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Record ID"
+                }
+              ]
+            },
+            "description": "Delete a record by ID from a table."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dynamic Models",
+      "description": "Visual Model Creator - manage dynamic database models and their fields.",
+      "item": [
+        {
+          "name": "Get Field Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/models/field-types",
+            "description": "Get all available field types for dynamic models."
+          }
+        },
+        {
+          "name": "List Models",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/models",
+            "description": "Get all dynamic models for the authenticated user."
+          }
+        },
+        {
+          "name": "Get Model",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                }
+              ]
+            },
+            "description": "Get a specific dynamic model with its fields and relationships."
+          }
+        },
+        {
+          "name": "Create Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Post\",\n  \"display_name\": \"Blog Posts\",\n  \"description\": \"Blog post entries\",\n  \"icon\": \"document\",\n  \"has_timestamps\": true,\n  \"has_soft_deletes\": false,\n  \"generate_api\": true,\n  \"fields\": [\n    {\n      \"name\": \"title\",\n      \"display_name\": \"Title\",\n      \"type\": \"string\",\n      \"is_required\": true,\n      \"is_searchable\": true\n    },\n    {\n      \"name\": \"content\",\n      \"display_name\": \"Content\",\n      \"type\": \"richtext\",\n      \"is_required\": false\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/models",
+            "description": "Create a new dynamic model with fields. This will generate the database table."
+          }
+        },
+        {
+          "name": "Update Model",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Updated Display Name\",\n  \"description\": \"Updated description\",\n  \"icon\": \"folder\",\n  \"is_active\": true,\n  \"generate_api\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                }
+              ]
+            },
+            "description": "Update an existing dynamic model's metadata."
+          }
+        },
+        {
+          "name": "Delete Model",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                }
+              ]
+            },
+            "description": "Delete a dynamic model and its database table."
+          }
+        },
+        {
+          "name": "Add Fields to Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fields\": [\n    {\n      \"name\": \"status\",\n      \"display_name\": \"Status\",\n      \"type\": \"enum\",\n      \"is_required\": true,\n      \"options\": [\"draft\", \"published\", \"archived\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel/fields",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel",
+                "fields"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                }
+              ]
+            },
+            "description": "Add new fields to an existing dynamic model."
+          }
+        },
+        {
+          "name": "Update Field",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Updated Field Name\",\n  \"description\": \"Field description\",\n  \"is_required\": true,\n  \"is_searchable\": true,\n  \"is_filterable\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel/fields/:field",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel",
+                "fields",
+                ":field"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                },
+                {
+                  "key": "field",
+                  "value": "1",
+                  "description": "Field ID"
+                }
+              ]
+            },
+            "description": "Update an existing field's properties."
+          }
+        },
+        {
+          "name": "Delete Field",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/models/:dynamicModel/fields/:field",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models",
+                ":dynamicModel",
+                "fields",
+                ":field"
+              ],
+              "variable": [
+                {
+                  "key": "dynamicModel",
+                  "value": "1",
+                  "description": "Dynamic model ID"
+                },
+                {
+                  "key": "field",
+                  "value": "1",
+                  "description": "Field ID"
+                }
+              ]
+            },
+            "description": "Delete a field from a dynamic model and remove its column from the database."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Database Explorer",
+      "description": "Database exploration and management endpoints.",
+      "item": [
+        {
+          "name": "Get Database Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/database/stats",
+            "description": "Get database statistics including total tables, rows, and top tables by size."
+          }
+        },
+        {
+          "name": "List Tables",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/database/tables",
+            "description": "Get all tables in the database (excludes protected system tables)."
+          }
+        },
+        {
+          "name": "Get Table Structure",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/database/tables/:tableName/structure",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "database",
+                "tables",
+                ":tableName",
+                "structure"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                }
+              ]
+            },
+            "description": "Get table structure including columns, types, and indexes."
+          }
+        },
+        {
+          "name": "Get Table Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/database/tables/:tableName/data?page=1&per_page=25&sort=id&direction=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "database",
+                "tables",
+                ":tableName",
+                "data"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "per_page",
+                  "value": "25",
+                  "description": "Records per page (max 100)"
+                },
+                {
+                  "key": "sort",
+                  "value": "id",
+                  "description": "Column to sort by"
+                },
+                {
+                  "key": "direction",
+                  "value": "desc",
+                  "description": "Sort direction (asc or desc)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                }
+              ]
+            },
+            "description": "Get paginated data from a table with sorting and search."
+          }
+        },
+        {
+          "name": "Insert Row",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Row\",\n  \"content\": \"Row content\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/database/tables/:tableName/rows",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "database",
+                "tables",
+                ":tableName",
+                "rows"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table (must be a dynamic model table)"
+                }
+              ]
+            },
+            "description": "Insert a new row into a dynamic model table."
+          }
+        },
+        {
+          "name": "Update Row",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Row\",\n  \"content\": \"Updated content\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/database/tables/:tableName/rows/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "database",
+                "tables",
+                ":tableName",
+                "rows",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                },
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Row ID"
+                }
+              ]
+            },
+            "description": "Update a row in a dynamic model table."
+          }
+        },
+        {
+          "name": "Delete Row",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/database/tables/:tableName/rows/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "database",
+                "tables",
+                ":tableName",
+                "rows",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "tableName",
+                  "value": "posts",
+                  "description": "Name of the table"
+                },
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Row ID"
+                }
+              ]
+            },
+            "description": "Delete a row from a dynamic model table."
+          }
+        },
+        {
+          "name": "Execute SQL Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM posts LIMIT 10\"\n}"
+            },
+            "url": "{{baseUrl}}/database/query",
+            "description": "Execute a read-only SQL SELECT query. Only SELECT queries are allowed for safety."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "description": "User CRUD operations for administrators.",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users",
+            "description": "Get all users."
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "Get a specific user by ID."
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/users",
+            "description": "Create a new user."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"email\": \"updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "Update an existing user."
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "Delete a user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles & Permissions",
+      "description": "Role and permission management endpoints.",
+      "item": [
+        {
+          "name": "List Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/permissions",
+            "description": "Get all available permissions."
+          }
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/roles",
+            "description": "Get all roles."
+          }
+        },
+        {
+          "name": "Get Role",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/roles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Role ID"
+                }
+              ]
+            },
+            "description": "Get a specific role by ID."
+          }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"editor\",\n  \"permissions\": [\"view_posts\", \"edit_posts\"]\n}"
+            },
+            "url": "{{baseUrl}}/roles",
+            "description": "Create a new role with permissions."
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"updated-role\",\n  \"permissions\": [\"view_posts\", \"edit_posts\", \"delete_posts\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Role ID"
+                }
+              ]
+            },
+            "description": "Update an existing role."
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/roles/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "roles",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Role ID"
+                }
+              ]
+            },
+            "description": "Delete a role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Keys (Tokens)",
+      "description": "API key management for accessing the Core Data API.",
+      "item": [
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tokens",
+            "description": "Get all API keys for the authenticated user."
+          }
+        },
+        {
+          "name": "Create API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My API Key\",\n  \"abilities\": [\"read\", \"write\"]\n}"
+            },
+            "url": "{{baseUrl}}/tokens",
+            "description": "Create a new API key."
+          }
+        },
+        {
+          "name": "Delete API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tokens/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tokens",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "API Key ID"
+                }
+              ]
+            },
+            "description": "Delete an API key."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Migrations",
+      "description": "Database migration management endpoints.",
+      "item": [
+        {
+          "name": "List Migrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/migrations",
+            "description": "Get list of all migrations and their status."
+          }
+        },
+        {
+          "name": "Run Migrations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/migrations/run",
+            "description": "Run pending database migrations."
+          }
+        },
+        {
+          "name": "Rollback Migrations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/migrations/rollback",
+            "description": "Rollback the last batch of migrations."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Code Generator",
+      "description": "Code generation utilities.",
+      "item": [
+        {
+          "name": "Generate Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"model\",\n  \"name\": \"Post\",\n  \"options\": {}\n}"
+            },
+            "url": "{{baseUrl}}/code/generate",
+            "description": "Generate code based on specified parameters."
+          }
+        }
+      ]
+    },
+    {
+      "name": "SDK",
+      "description": "JavaScript SDK endpoint.",
+      "item": [
+        {
+          "name": "Get JavaScript SDK",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/../sdk/digibase.js",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "..",
+                "sdk",
+                "digibase.js"
+              ]
+            },
+            "description": "Get the Digibase JavaScript SDK for client-side integration."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reverb (WebSockets)",
+      "description": "Real-time event testing via Reverb WebSockets.",
+      "item": [
+        {
+          "name": "Connect and Subscribe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "ws://127.0.0.1:8080/app/jvriyrkvunhxjn7nbxwa?protocol=7&client=js&version=8.4.0&flash=false",
+              "protocol": "ws",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8080",
+              "path": [
+                "app",
+                "jvriyrkvunhxjn7nbxwa"
+              ],
+              "query": [
+                {
+                  "key": "protocol",
+                  "value": "7"
+                },
+                {
+                  "key": "client",
+                  "value": "js"
+                },
+                {
+                  "key": "version",
+                  "value": "8.4.0"
+                },
+                {
+                  "key": "flash",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "WebSocket connection URL. After connecting, send the subscription message: {\"event\":\"pusher:subscribe\",\"data\":{\"channel\":\"test-channel\"}}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -55,7 +55,7 @@ class CreateApiKey extends CreateRecord
             ")
             ->persistent()
             ->actions([
-                \Filament\Notifications\Actions\Action::make('copy')
+                \Filament\Actions\Action::make('copy')
                     ->label('📋 Copy Key')
                     ->color('primary')
                     ->extraAttributes([

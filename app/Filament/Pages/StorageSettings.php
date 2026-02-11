@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\SystemSetting;
+use App\Settings\GeneralSettings;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -25,16 +25,16 @@ class StorageSettings extends Page implements HasForms
 
     public ?array $data = [];
 
-    public function mount(): void
+    public function mount(GeneralSettings $settings): void
     {
         $this->form->fill([
-            'storage_driver' => SystemSetting::get('storage_driver', 'local'),
-            'aws_access_key_id' => SystemSetting::get('aws_access_key_id'),
-            'aws_secret_access_key' => SystemSetting::get('aws_secret_access_key'),
-            'aws_default_region' => SystemSetting::get('aws_default_region', 'us-east-1'),
-            'aws_bucket' => SystemSetting::get('aws_bucket'),
-            'endpoint' => SystemSetting::get('aws_endpoint'),
-            'use_path_style_endpoint' => SystemSetting::get('aws_use_path_style') === 'true' ? 'true' : 'false',
+            'storage_driver' => $settings->storage_driver ?? 'local',
+            'aws_access_key_id' => $settings->aws_access_key_id,
+            'aws_secret_access_key' => $settings->aws_secret_access_key,
+            'aws_default_region' => $settings->aws_default_region ?? 'us-east-1',
+            'aws_bucket' => $settings->aws_bucket,
+            'endpoint' => $settings->aws_endpoint,
+            'use_path_style_endpoint' => $settings->aws_use_path_style === 'true' ? 'true' : 'false',
         ]);
     }
 
@@ -112,20 +112,22 @@ class StorageSettings extends Page implements HasForms
         ];
     }
 
-    public function submit(): void
+    public function submit(GeneralSettings $settings): void
     {
         $data = $this->form->getState();
 
-        SystemSetting::set('storage_driver', $data['storage_driver'], 'storage');
+        $settings->storage_driver = $data['storage_driver'];
         
         if ($data['storage_driver'] === 's3') {
-            SystemSetting::set('aws_access_key_id', $data['aws_access_key_id'], 'storage');
-            SystemSetting::set('aws_secret_access_key', $data['aws_secret_access_key'], 'storage', true);
-            SystemSetting::set('aws_default_region', $data['aws_default_region'], 'storage');
-            SystemSetting::set('aws_bucket', $data['aws_bucket'], 'storage');
-            SystemSetting::set('aws_endpoint', $data['endpoint'], 'storage');
-            SystemSetting::set('aws_use_path_style', $data['use_path_style_endpoint'] === 'true' ? 'true' : 'false', 'storage');
+            $settings->aws_access_key_id = $data['aws_access_key_id'];
+            $settings->aws_secret_access_key = $data['aws_secret_access_key'];
+            $settings->aws_default_region = $data['aws_default_region'];
+            $settings->aws_bucket = $data['aws_bucket'];
+            $settings->aws_endpoint = $data['endpoint'];
+            $settings->aws_use_path_style = $data['use_path_style_endpoint'];
         }
+
+        $settings->save();
 
         Notification::make()
             ->title('Settings Saved Successfully')

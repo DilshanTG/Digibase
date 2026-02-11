@@ -22,6 +22,7 @@ use Inerba\DbConfig\DbConfigPlugin;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use pxlrbt\FilamentSpotlight\SpotlightPlugin;
 use ShuvroRoy\FilamentSpatieLaravelBackup\FilamentSpatieLaravelBackupPlugin;
+use ShuvroRoy\FilamentSpatieLaravelHealth\FilamentSpatieLaravelHealthPlugin;
 use Jeffgreco13\FilamentBreezy\BreezyCore;
 use Filament\Navigation\NavigationItem;
 use Filament\View\PanelsRenderHook;
@@ -82,6 +83,10 @@ class AdminPanelProvider extends PanelProvider
                         slug: 'my-profile'
                     )
                     ->enableTwoFactorAuthentication()
+            )
+            ->plugin(
+                FilamentSpatieLaravelHealthPlugin::make()
+                    ->authorize(fn () => auth()->check() && auth()->id() === 1)
             )
             ->databaseNotifications()
             ->navigationItems([

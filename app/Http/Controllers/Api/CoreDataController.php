@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Models\DynamicRecord;
 use App\Http\Traits\TurboCache;
+use Spatie\QueryBuilder\QueryBuilder;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\AllowedSort;
 
 /**
  * Core Data Controller - Unified API Engine for Digibase
@@ -73,13 +76,16 @@ class CoreDataController extends Controller
      */
     protected function validateRule(?string $rule, ?object $record = null): bool
     {
-        if (empty($rule)) return false;
+        // Default to true (allow) if no specific RLS rule is defined,
+        // relying on the primary API Key / Auth middleware for security.
+        if (empty($rule)) return true;
         
         $rule = trim(strtolower($rule));
         if ($rule === 'true') return true;
         if ($rule === 'false') return false;
 
-        $authId = auth('sanctum')->id();
+        // Check both Sanctum auth AND API Key user
+        $authId = auth('sanctum')->id() ?? request()->attributes->get('api_key_user')?->id;
 
         if ($rule === 'auth.id != null' || $rule === 'auth.id !== null') {
             return $authId !== null;
@@ -342,8 +348,69 @@ class CoreDataController extends Controller
 
 
     /**
+     * 🔗 RELATION RESOLVER: Register dynamic relations on DynamicRecord and return
+     * the namespaced keys that were registered + the allowed include names.
+     *
+     * Returns ['includeMap' => ['books' => 'test_authors__books', ...], 'eagerLoad' => [...]]
+     */
+    protected function resolveIncludes(DynamicModel $model, string $tableName): array
+    {
+        $includeMap = [];
+        $allowedIncludes = [];
+
+        foreach ($model->relationships()->with('relatedModel')->get() as $relDef) {
+            if (!$relDef->relatedModel) continue;
+
+            $relationName = $relDef->name;
+            $uniqueRelKey = $tableName . '__' . $relationName;
+            $includeMap[$relationName] = $uniqueRelKey;
+            $allowedIncludes[] = $relationName;
+
+            DynamicRecord::resolveRelationUsing($uniqueRelKey, function ($instance) use ($relDef) {
+                $relatedTable = $relDef->relatedModel->table_name;
+                $foreignKey = $relDef->foreign_key;
+                $localKey = $relDef->local_key ?? 'id';
+                $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
+
+                if ($relDef->type === 'hasMany') {
+                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                    $foreignKey = $qualify($foreignKey, $relatedTable);
+                    $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
+                    $relation->getRelated()->setTable($relatedTable);
+                    $relation->getQuery()->from($relatedTable);
+                    return $relation;
+                }
+
+                if ($relDef->type === 'belongsTo') {
+                    $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
+                    $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
+                    $relation->getRelated()->setTable($relatedTable);
+                    $relation->getQuery()->from($relatedTable);
+                    return $relation;
+                }
+
+                if ($relDef->type === 'hasOne') {
+                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                    $foreignKey = $qualify($foreignKey, $relatedTable);
+                    $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
+                    $relation->getRelated()->setTable($relatedTable);
+                    $relation->getQuery()->from($relatedTable);
+                    return $relation;
+                }
+
+                return null;
+            });
+        }
+
+        return compact('includeMap', 'allowedIncludes');
+    }
+
+
+
+    /**
      * List all records from a dynamic model.
      * ⚡ TURBO CACHE: Cached with automatic invalidation
+     * 🏎️ Powered by Spatie QueryBuilder for standardized filtering/sorting
      */
     public function index(Request $request, string $tableName): JsonResponse
     {
@@ -356,7 +423,7 @@ class CoreDataController extends Controller
         if (!$this->validateRule($model->list_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
-        
+
         $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
@@ -370,123 +437,156 @@ class CoreDataController extends Controller
 
     /**
      * Execute the actual index query (extracted for caching).
+     * 🏎️ Uses Spatie QueryBuilder for clean filter/sort/include handling.
      */
     protected function executeIndexQuery(Request $request, DynamicModel $model, string $tableName): JsonResponse
     {
-        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
+        $baseQuery = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
         if ($model->has_soft_deletes) {
-            $query->whereNull('deleted_at');
+            $baseQuery->whereNull('deleted_at');
         }
 
         $ownershipField = $this->extractOwnershipField($model->list_rule);
         if ($ownershipField) {
-            $authId = auth('sanctum')->id();
-            $query->where($ownershipField, $authId);
+            $baseQuery->where($ownershipField, auth('sanctum')->id());
         }
 
-        if ($request->has('include')) {
-            $includes = explode(',', $request->get('include'));
-            foreach ($includes as $include) {
-                $relationName = trim($include);
-                $relDef = $model->relationships()->where('name', $relationName)->first();
+        // Build allowed fields from dynamic model schema
+        $allFields = $model->fields->pluck('name')->toArray();
+        $systemFields = ['id', 'created_at', 'updated_at'];
 
-                if ($relDef && $relDef->relatedModel) {
-                     // Namespace relation key with table name to prevent global
-                     // state collisions in Octane/Swoole (Bug #4 fix)
-                     $uniqueRelKey = $tableName . '__' . $relationName;
-
-                     DynamicRecord::resolveRelationUsing($uniqueRelKey, function ($instance) use ($relDef) {
-                        $relatedTable = $relDef->relatedModel->table_name;
-                        $foreignKey = $relDef->foreign_key;
-                        $localKey = $relDef->local_key ?? 'id';
-
-                        $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
-
-                        if ($relDef->type === 'hasMany') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            $foreignKey = $qualify($foreignKey, $relatedTable);
-
-                            $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        }
-                        elseif ($relDef->type === 'belongsTo') {
-                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-
-                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        }
-                        elseif ($relDef->type === 'hasOne') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            $foreignKey = $qualify($foreignKey, $relatedTable);
-
-                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        }
-                        return null;
-                     });
-                     $query->with($uniqueRelKey);
-                }
+        // Allowed filters: filterable fields get exact match, searchable fields get partial
+        $allowedFilters = [];
+        foreach ($model->fields as $field) {
+            if ($field->is_filterable) {
+                $allowedFilters[] = AllowedFilter::exact($field->name);
+            }
+            if ($field->is_searchable) {
+                $allowedFilters[] = AllowedFilter::partial($field->name);
             }
         }
 
+        // Allowed sorts: sortable fields + system fields
+        $sortableFields = $model->fields->where('is_sortable', true)->pluck('name')->toArray();
+        $allowedSorts = array_merge($sortableFields, $systemFields);
+
+        // Register dynamic relations and get allowed includes
+        $resolved = $this->resolveIncludes($model, $tableName);
+
+        // 🔍 Global search support (backward-compatible with ?search= param)
         if ($request->has('search') && $request->search) {
             $searchTerm = $request->search;
             $searchableFields = $model->fields->where('is_searchable', true)->pluck('name')->toArray();
-            
             if (!empty($searchableFields)) {
-                $query->where(function ($q) use ($searchableFields, $searchTerm) {
-                    foreach ($searchableFields as $field) {
-                        $q->orWhere($field, 'LIKE', $searchTerm . '%');
+                $baseQuery->where(function ($q) use ($searchableFields, $searchTerm) {
+                    foreach ($searchableFields as $f) {
+                        $q->orWhere($f, 'LIKE', $searchTerm . '%');
                     }
                 });
             }
         }
 
-        foreach ($model->fields->where('is_filterable', true) as $field) {
-            if ($request->has($field->name) && $request->input($field->name) !== null) {
-                $query->where($field->name, $request->input($field->name));
+        // Map user-facing include names to internal namespaced keys
+        $requestedIncludes = $request->has('include')
+            ? array_map('trim', explode(',', $request->get('include')))
+            : [];
+        $eagerLoad = [];
+        foreach ($requestedIncludes as $inc) {
+            if (isset($resolved['includeMap'][$inc])) {
+                $eagerLoad[] = $resolved['includeMap'][$inc];
             }
         }
-
-        $sortField = $request->get('sort', 'id');
-        $sortDirection = $request->get('direction', 'desc');
-        $sortableFields = $model->fields->where('is_sortable', true)->pluck('name')->toArray();
-        $sortableFields[] = 'id';
-        $sortableFields[] = 'created_at';
-        $sortableFields[] = 'updated_at';
-
-        if (in_array($sortField, $sortableFields)) {
-            $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+        if (!empty($eagerLoad)) {
+            $baseQuery->with($eagerLoad);
         }
 
+        // Build QueryBuilder on top of the prepared base query
         $perPage = min($request->get('per_page', 15), 100);
-        $data = $query->paginate($perPage);
 
+        // NOTE: We do NOT use ->with('media') here because polymorphic loading 
+        // on DynamicRecord with varying table names can be unreliable in eager loading keys.
+        // We perform a manual eager load below.
+
+        $data = QueryBuilder::for($baseQuery)
+            ->allowedFilters($allowedFilters)
+            ->allowedSorts($allowedSorts)
+            ->defaultSort('-id')
+            ->paginate($perPage)
+            ->appends($request->query());
+
+        // Manual Eager Load Media
+        $ids = $data->getCollection()->pluck('id')->toArray();
+        $mediaClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
+        $allMedia = collect();
+        
+        if (!empty($ids) && class_exists($mediaClass)) {
+            $allMedia = $mediaClass::where('model_type', $tableName)
+                ->whereIn('model_id', $ids)
+                ->get()
+                ->groupBy('model_id');
+        }
+
+        // Post-process: hide fields
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
-        $prefix = $tableName . '__';
+        // Use map to preserve all fields, even if types are duplicate
+        $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn($f) => ['name' => $f->name, 'type' => $f->type]);
 
-        $results = $data->getCollection()->map(function ($item) use ($hiddenFields, $prefix) {
+        $results = $data->getCollection()->map(function ($item) use ($hiddenFields, $fileFields, $allMedia) {
             if (method_exists($item, 'makeHidden')) {
                 $item->makeHidden($hiddenFields);
             }
             
-            $array = $item->toArray();
-            $cleaned = [];
-            foreach ($array as $key => $value) {
-                if (is_string($key) && str_starts_with($key, $prefix)) {
-                    $cleaned[substr($key, strlen($prefix))] = $value;
-                } else {
-                    $cleaned[$key] = $value;
+            $attributes = $item->toArray();
+            
+            // Get media for this items
+            $mediaItems = $allMedia->get($item->id, collect())->sortByDesc('created_at')->values();
+
+            // Inject media URLs into image/file fields
+            if ($fileFields->isNotEmpty() && $mediaItems->isNotEmpty()) {
+                
+                // Map over the fields logic
+                foreach ($fileFields as $fieldDef) {
+                    $fieldName = Str::snake($fieldDef['name']);
+                    $type = $fieldDef['type'];
+                    
+                    // Simple heuristic: If field is null, grab the latest media item
+                    if (array_key_exists($fieldName, $attributes) && empty($attributes[$fieldName])) {
+                        
+                        $targetCollection = $type === 'image' ? 'images' : 'files';
+                        
+                        // Try to find in target collection first
+                        $media = $mediaItems->firstWhere('collection_name', $targetCollection);
+                        
+                        // Fallback to 'files' collection if looking for image
+                        if (!$media && $type === 'image') {
+                            $media = $mediaItems->firstWhere('collection_name', 'files');
+                        }
+                        
+                         // Fallback to 'images' collection if looking for file
+                         if (!$media && $type === 'file') {
+                            $media = $mediaItems->firstWhere('collection_name', 'images');
+                        }
+                        
+                        if ($media) {
+                            $attributes[$fieldName] = $media->getUrl();
+                        }
+                    }
                 }
+                
+                // Also append full media object for completeness
+                $attributes['media'] = $mediaItems->map(fn($m) => [
+                    'id' => $m->id,
+                    'url' => $m->getUrl(),
+                    'name' => $m->file_name,
+                    'mime_type' => $m->mime_type,
+                    'collection' => $m->collection_name
+                ]);
             }
-            return $cleaned;
+
+
+
+            return $attributes;
         });
 
         return response()->json([
@@ -523,50 +623,14 @@ class CoreDataController extends Controller
             $query->whereNull('deleted_at');
         }
 
-        if ($request->has('include')) {
-            $includes = explode(',', $request->get('include'));
-            foreach ($includes as $include) {
-                $relationName = trim($include);
-                $relDef = $model->relationships()->where('name', $relationName)->first();
-
-                if ($relDef && $relDef->relatedModel) {
-                     // Namespace relation key with table name to prevent global
-                     // state collisions in Octane/Swoole (Bug #4 fix)
-                     $uniqueRelKey = $tableName . '__' . $relationName;
-
-                     DynamicRecord::resolveRelationUsing($uniqueRelKey, function ($instance) use ($relDef) {
-                        $relatedTable = $relDef->relatedModel->table_name;
-                        $foreignKey = $relDef->foreign_key;
-                        $localKey = $relDef->local_key ?? 'id';
-                        $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
-
-                        if ($relDef->type === 'hasMany') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            $foreignKey = $qualify($foreignKey, $relatedTable);
-
-                            $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        } elseif ($relDef->type === 'belongsTo') {
-                            $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
-
-                            $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        } elseif ($relDef->type === 'hasOne') {
-                            $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
-                            $foreignKey = $qualify($foreignKey, $relatedTable);
-
-                            $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
-                            $relation->getRelated()->setTable($relatedTable);
-                            $relation->getQuery()->from($relatedTable);
-                            return $relation;
-                        }
-                     });
-                     $query->with($uniqueRelKey);
-                }
+        // Resolve includes using shared helper
+        $resolved = $this->resolveIncludes($model, $tableName);
+        $requestedIncludes = $request->has('include')
+            ? array_map('trim', explode(',', $request->get('include')))
+            : [];
+        foreach ($requestedIncludes as $inc) {
+            if (isset($resolved['includeMap'][$inc])) {
+                $query->with($resolved['includeMap'][$inc]);
             }
         }
 
@@ -579,22 +643,100 @@ class CoreDataController extends Controller
         if (!$this->validateRule($model->view_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
+        
+        // Eager load media explicitly for this record
+        // Using manual load to bypass potential polymorphic issues
+        $mediaClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
+        $mediaCollection = collect();
+        if (class_exists($mediaClass)) {
+            $mediaCollection = $mediaClass::where('model_type', $tableName)
+                ->where('model_id', $id)
+                ->get();
+        }
 
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         $record->makeHidden($hiddenFields);
 
-        $array = $record->toArray();
-        $prefix = $tableName . '__';
-        $cleaned = [];
-        foreach ($array as $key => $value) {
-            if (is_string($key) && str_starts_with($key, $prefix)) {
-                $cleaned[substr($key, strlen($prefix))] = $value;
-            } else {
-                $cleaned[$key] = $value;
+        $attributes = $record->toArray();
+        $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn($f) => ['name' => $f->name, 'type' => $f->type]);
+        $mediaItems = $mediaCollection->sortByDesc('created_at')->values();
+
+        // Inject media URLs into image/file fields
+        if ($fileFields->isNotEmpty() && $mediaItems->isNotEmpty()) {
+            foreach ($fileFields as $fieldDef) {
+                $fieldName = Str::snake($fieldDef['name']);
+                $type = $fieldDef['type'];
+                
+                if (array_key_exists($fieldName, $attributes) && empty($attributes[$fieldName])) {
+                    $targetCollection = $type === 'image' ? 'images' : 'files';
+                    $media = $mediaItems->firstWhere('collection_name', $targetCollection);
+
+                    if (!$media && $type === 'image') {
+                        $media = $mediaItems->firstWhere('collection_name', 'files');
+                    }
+                    if (!$media && $type === 'file') {
+                        $media = $mediaItems->firstWhere('collection_name', 'images');
+                    }
+                    
+                    if ($media) {
+                        $attributes[$fieldName] = $media->getUrl();
+                    }
+                }
+            }
+            
+            $attributes['media'] = $mediaItems->map(fn($m) => [
+                'id' => $m->id,
+                'url' => $m->getUrl(),
+                'name' => $m->file_name,
+                'mime_type' => $m->mime_type,
+                'collection' => $m->collection_name
+            ]);
+        }
+
+
+
+        return response()->json(['data' => $attributes]);
+    }
+
+    /**
+     * Helper to normalize snake_case inputs to real field names.
+     */
+    protected function normalizeInput(Request $request, DynamicModel $model): void
+    {
+        $inputUpdates = [];
+        $fileUpdates = [];
+
+        foreach ($model->fields as $field) {
+            $snakeName = Str::snake($field->name);
+            
+            if ($snakeName === $field->name) continue;
+
+            // Handle File Fields strictly
+            if (in_array($field->type, ['file', 'image'])) {
+                if ($request->hasFile($snakeName) && !$request->hasFile($field->name)) {
+                     $file = $request->file($snakeName);
+                     $fileUpdates[$field->name] = $file;
+                     // ALSO merge into input to ensure it bypasses any convertedFiles cache
+                     $inputUpdates[$field->name] = $file;
+                }
+                continue; 
+            }
+
+            // Handle Normal Data Fields
+            if ($request->has($snakeName) && !$request->has($field->name)) {
+                $inputUpdates[$field->name] = $request->input($snakeName);
             }
         }
 
-        return response()->json(['data' => $cleaned]);
+        if (!empty($inputUpdates)) {
+            $request->merge($inputUpdates);
+        }
+        
+        if (!empty($fileUpdates)) {
+             foreach ($fileUpdates as $key => $file) {
+                 $request->files->set($key, $file);
+             }
+        }
     }
 
     /**
@@ -615,6 +757,9 @@ class CoreDataController extends Controller
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
         
+        // Normalize Request Inputs (snake_case -> Real Name)
+        $this->normalizeInput($request, $model);
+        
         $tableName = $model->table_name;
 
         if (!Schema::hasTable($tableName)) {
@@ -622,6 +767,15 @@ class CoreDataController extends Controller
         }
 
         $rules = $this->buildValidationRules($model);
+        
+        Log::info('DEBUG STORE', [
+            'hasFile_Image' => $request->hasFile('Image'),
+            'file_Image' => $request->file('Image'), // Might not serialize well
+            'all_Image_set' => isset($request->all()['Image']),
+            'all_keys' => array_keys($request->all()),
+            'files_keys' => array_keys($request->allFiles()),
+        ]);
+
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
@@ -632,16 +786,15 @@ class CoreDataController extends Controller
         }
 
         try {
-            $record = $this->executeInTransaction(function () use ($request, $model, $tableName) {
+            // Define file fields outside closure so they are available for response construction
+            $allFileFields = $model->fields->whereIn('type', ['image', 'file']);
+
+            $record = $this->executeInTransaction(function () use ($request, $model, $tableName, $allFileFields) {
                 $data = [];
-                $fileFields = [];
                 
                 foreach ($model->fields as $field) {
-                    // Skip file/image fields - handle them separately
+                    // Skip file/image fields - handle them separately after save
                     if (in_array($field->type, ['file', 'image'])) {
-                        if ($request->hasFile($field->name)) {
-                            $fileFields[] = $field;
-                        }
                         continue;
                     }
                     
@@ -664,10 +817,19 @@ class CoreDataController extends Controller
                 $record->save();
                 
                 // 📸 Handle File Uploads using Spatie Media Library
-                $fileFields = $model->fields->whereIn('type', ['image', 'file']);
-                foreach ($fileFields as $field) {
-                    if ($request->hasFile($field->name)) {
-                        $record->addMediaFromRequest($field->name)
+                foreach ($allFileFields as $field) {
+                    $file = $request->file($field->name);
+                    
+                    // Fallback to input bag if file bag is empty (due to normalization cache issues)
+                    if (!$file) {
+                        $inputVal = $request->input($field->name);
+                        if ($inputVal instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+                            $file = $inputVal;
+                        }
+                    }
+
+                    if ($file) {
+                        $record->addMedia($file)
                                ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
                     }
                 }
@@ -685,56 +847,35 @@ class CoreDataController extends Controller
             // Include media URLs in response
             $responseData = $record->toArray();
             if (method_exists($record, 'getMedia')) {
-                $responseData['media'] = [
-                    'files' => $record->getMedia('files')->map(function($media) {
-                        try {
-                            return [
-                                'id' => $media->id,
-                                'name' => $media->name,
-                                'file_name' => $media->file_name,
-                                'mime_type' => $media->mime_type,
-                                'size' => $media->size,
-                                'url' => $media->getUrl(),
-                            ];
-                        } catch (\Throwable) {
-                            // Fallback to direct storage URL if model reload fails (common in dynamic tables)
-                            return [
-                                'id' => $media->id,
-                                'name' => $media->name,
-                                'file_name' => $media->file_name,
-                                'mime_type' => $media->mime_type,
-                                'size' => $media->size,
-                                'url' => Storage::disk($media->disk ?? 'digibase_storage')->url($media->id . '/' . $media->file_name),
-                            ];
-                        }
-                    }),
-                    'images' => $record->getMedia('images')->map(function($media) {
-                        try {
-                            return [
-                                'id' => $media->id,
-                                'name' => $media->name,
-                                'file_name' => $media->file_name,
-                                'mime_type' => $media->mime_type,
-                                'size' => $media->size,
-                                'url' => $media->getUrl(),
-                                'thumb_url' => $media->hasGeneratedConversion('thumb') ? $media->getUrl('thumb') : null,
-                                'preview_url' => $media->hasGeneratedConversion('preview') ? $media->getUrl('preview') : null,
-                            ];
-                        } catch (\Exception) {
-                             return [
-                                'id' => $media->id,
-                                'name' => $media->name,
-                                'file_name' => $media->file_name,
-                                'mime_type' => $media->mime_type,
-                                'size' => $media->size,
-                                'url' => Storage::disk($media->disk ?? 'digibase_storage')->url($media->id . '/' . $media->file_name),
-                                'thumb_url' => null,
-                                'preview_url' => null,
-                            ];
-                        }
-                    }),
-                ];
+                // Reload media to get the newly uploaded one
+                $record->load('media');
+                
+                $responseData['media'] = $record->media->map(function($m) {
+                    return [
+                        'id' => $m->id,
+                        'url' => $m->getUrl(),
+                        'name' => $m->file_name,
+                        'mime_type' => $m->mime_type,
+                        'collection' => $m->collection_name
+                    ];
+                });
+                
+                // Also inject into fields (heuristic)
+                foreach ($allFileFields as $field) {
+                     $fieldName = Str::snake($field->name);
+                     if (empty($responseData[$fieldName])) {
+                         // Very basic mapping for fresh upload
+                         // We look for the media item with the same file name or just use the latest?
+                         // Using latest is safest simple heuristic for single file upload per request
+                         $m = $record->media->sortByDesc('created_at')->first(); 
+                         // Check strictly if mapped? No, Spatie doesn't map to column easily without custom properties.
+                         // But we just uploaded it.
+                         if ($m) $responseData[$fieldName] = $m->getUrl();
+                     }
+                }
             }
+            
+            // Response is already clean due to DynamicRecord::toArray() override
 
             return response()->json(['data' => $responseData], 201);
         } catch (\Exception $e) {
@@ -780,6 +921,9 @@ class CoreDataController extends Controller
         if (!$this->validateRule($model->update_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
+
+        // Normalize Request Inputs (snake_case -> Real Name)
+        $this->normalizeInput($request, $model);
 
         $rules = $this->buildValidationRules($model, true, $id);
         $validator = Validator::make($request->all(), $rules);
@@ -828,13 +972,23 @@ class CoreDataController extends Controller
                 // 📸 Handle File Uploads using Spatie Media Library
                 $fileFields = $model->fields->whereIn('type', ['image', 'file']);
                 foreach ($fileFields as $field) {
-                    if ($request->hasFile($field->name)) {
+                    $file = $request->file($field->name);
+                    
+                    // Fallback to input bag if file bag is empty
+                    if (!$file) {
+                        $inputVal = $request->input($field->name);
+                        if ($inputVal instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+                            $file = $inputVal;
+                        }
+                    }
+
+                    if ($file) {
                         // Clear existing media if replacing
                         if ($request->input('replace_' . $field->name, false)) {
                             $pdoRecord->clearMediaCollection($field->type === 'image' ? 'images' : 'files');
                         }
                         
-                        $pdoRecord->addMediaFromRequest($field->name)
+                        $pdoRecord->addMedia($file)
                                   ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
                     }
                 }

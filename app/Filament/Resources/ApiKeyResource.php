@@ -11,8 +11,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Schemas\Components\Section;
-use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
+use Filament\Actions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use BackedEnum;
@@ -55,7 +54,8 @@ class ApiKeyResource extends Resource
                             ->default('public')
                             ->required()
                             ->live()
-                            ->helperText('Public keys can only read. Secret keys can create, update, and delete.'),
+                            ->helperText('Public keys can only read. Secret keys can create, update, and delete.')
+                            ->disabledOn('edit'),
 
                         Forms\Components\CheckboxList::make('scopes')
                             ->label('Permissions')
@@ -195,7 +195,7 @@ class ApiKeyResource extends Resource
                     ->falseLabel('Inactive Only'),
             ])
             ->actions([
-                Action::make('copy')
+                Actions\Action::make('copy')
                     ->label('Copy Key')
                     ->icon('heroicon-o-clipboard')
                     ->color('gray')
@@ -203,13 +203,14 @@ class ApiKeyResource extends Resource
                     ->extraAttributes(fn ($record) => [
                         'x-on:click' => "navigator.clipboard.writeText('{$record->key}'); \$tooltip('Copied!')",
                     ]),
-                Action::make('toggle')
+                Actions\Action::make('toggle')
                     ->label(fn ($record) => $record->is_active ? 'Deactivate' : 'Activate')
                     ->icon(fn ($record) => $record->is_active ? 'heroicon-o-pause' : 'heroicon-o-play')
                     ->color(fn ($record) => $record->is_active ? 'warning' : 'success')
                     ->requiresConfirmation()
                     ->action(fn ($record) => $record->update(['is_active' => !$record->is_active])),
-                DeleteAction::make()
+                Actions\EditAction::make(),
+                Actions\DeleteAction::make()
                     ->label('Revoke'),
             ])
             ->bulkActions([
@@ -233,6 +234,7 @@ class ApiKeyResource extends Resource
         return [
             'index' => Pages\ListApiKeys::route('/'),
             'create' => Pages\CreateApiKey::route('/create'),
+            'edit' => Pages\EditApiKey::route('/{record}/edit'),
         ];
     }
 }
