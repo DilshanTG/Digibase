@@ -127,6 +127,7 @@ class DynamicRecordObserver
                 return $model->fields
                     ->where('is_hidden', true)
                     ->pluck('name')
+                    ->map(fn($name) => \Illuminate\Support\Str::snake($name))
                     ->toArray();
             });
         } catch (\Throwable) {

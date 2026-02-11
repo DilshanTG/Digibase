@@ -4,7 +4,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
@@ -16,7 +16,7 @@ use Illuminate\Foundation\Events\Dispatchable;
  * Channel: private-data.{table}
  * Event name: model.changed
  */
-class ModelChanged implements ShouldBroadcast
+class ModelChanged implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets;
 

@@ -13,26 +13,25 @@ class StatsOverviewWidget extends BaseWidget
 {
     protected function getStats(): array
     {
+        $totalRequests = \App\Models\ApiAnalytics::count();
+        $totalErrors = \App\Models\ApiAnalytics::where('status_code', '>=', 400)->count();
+        $activeKeys = \App\Models\ApiKey::where('is_active', true)->count();
+
         return [
-            Stat::make('Total Users', User::count())
-                ->description('Registered users')
-                ->descriptionIcon('heroicon-m-users')
+            \Filament\Widgets\StatsOverviewWidget\Stat::make('Total API Requests', $totalRequests)
+                ->description('All time requests')
+                ->descriptionIcon('heroicon-m-arrow-trending-up')
+                ->chart([7, 2, 10, 3, 15, 4, 17])
+                ->color('success'),
+
+            \Filament\Widgets\StatsOverviewWidget\Stat::make('Failed Requests', $totalErrors)
+                ->description('4xx & 5xx Errors')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color('danger'),
+
+            \Filament\Widgets\StatsOverviewWidget\Stat::make('Active API Keys', $activeKeys)
+                ->description('Keys currently in use')
                 ->color('primary'),
-
-            Stat::make('Total Tables', DynamicModel::count())
-                ->description('Dynamic models created')
-                ->descriptionIcon('heroicon-m-circle-stack')
-                ->color('success'),
-
-            Stat::make('Active API Tokens', PersonalAccessToken::count())
-                ->description('Sanctum tokens issued')
-                ->descriptionIcon('heroicon-m-key')
-                ->color('warning'),
-
-            Stat::make('Database', $this->getDatabaseHealth())
-                ->description('System health')
-                ->descriptionIcon('heroicon-m-heart')
-                ->color('success'),
         ];
     }
 
