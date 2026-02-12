@@ -359,7 +359,7 @@ NEXT;
         $modelName = $model->name;
         $displayName = $model->display_name;
         $tableName = $model->table_name;
-        
+
         $code = <<<NUXT
 <script setup lang="ts">
 const { data } = await useFetch('/api/data/{$tableName}')
@@ -384,5 +384,146 @@ NUXT;
                 'description' => "Nuxt 3 page component with useFetch for {$displayName}."
             ]
         ];
+    }
+
+    /**
+     * 🎨 VIBE CODING: Generate Next.js component using Digibase SDK
+     *
+     * Generates a production-ready Next.js component that uses the
+     * official Digibase TypeScript SDK for type-safe data fetching.
+     */
+    public function generateNextJsComponent(DynamicModel $model): string
+    {
+        $className = Str::studly(Str::singular($model->table_name));
+        $tableName = $model->table_name;
+        $displayName = $model->display_name;
+
+        // Generate TypeScript interface fields
+        $interfaceFields = "    id: number;\n";
+        foreach ($model->fields as $field) {
+            $tsType = $this->mapTypeToTypeScript($field->type);
+            $nullable = !$field->is_required ? '?' : '';
+            $interfaceFields .= "    '{$field->name}'{$nullable}: {$tsType};\n";
+        }
+        $interfaceFields .= "    created_at: string;\n";
+        $interfaceFields .= "    updated_at: string;";
+
+        return <<<TSX
+'use client';
+import { useState, useEffect } from 'react';
+import { digibase } from '@/lib/digibase/client';
+
+// 🎯 Type Definition
+interface {$className} {
+{$interfaceFields}
+}
+
+export default function {$className}List() {
+    const [data, setData] = useState<{$className}[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        // ✨ Vibe Coding: Auto-generated Digibase SDK Call
+        digibase
+            .from<{$className}>('{$tableName}')
+            .select('*')
+            .sort('created_at', 'desc')
+            .limit(20)
+            .get()
+            .then(({ data: items, error: apiError }) => {
+                if (apiError) {
+                    setError(apiError);
+                } else {
+                    setData(items);
+                }
+            })
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading vibe... ⏳</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-10 text-center">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                    <h3 className="text-red-800 font-semibold mb-2">Error Loading Data</h3>
+                    <p className="text-red-600 text-sm">{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (data.length === 0) {
+        return (
+            <div className="p-10 text-center">
+                <p className="text-gray-500">No {$displayName} found. Create your first one!</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="container mx-auto p-6">
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900">{$displayName}</h1>
+                <p className="text-gray-600 mt-2">Powered by Digibase SDK</p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {data.map((item) => (
+                    <div
+                        key={item.id}
+                        className="p-6 bg-white border border-gray-200 rounded-lg shadow hover:shadow-lg transition-shadow duration-200"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-lg text-gray-900">#{item.id}</h3>
+                            <span className="text-xs text-gray-500">
+                                {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                        </div>
+
+                        <pre className="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto">
+{JSON.stringify(item, null, 2)}
+                        </pre>
+
+                        <div className="mt-4 flex gap-2">
+                            <button className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                                Edit
+                            </button>
+                            <button className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+TSX;
+    }
+
+    /**
+     * Map Digibase field types to TypeScript types
+     */
+    protected function mapTypeToTypeScript(string $fieldType): string
+    {
+        return match($fieldType) {
+            'string', 'text', 'email', 'url', 'date', 'datetime', 'file', 'image' => 'string',
+            'integer', 'decimal', 'float', 'number' => 'number',
+            'boolean' => 'boolean',
+            'json' => 'any',
+            default => 'string'
+        };
     }
 }
