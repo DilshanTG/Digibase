@@ -45,6 +45,19 @@ class ApiKeyResource extends Resource
                             ->maxLength(255)
                             ->helperText('A friendly name to identify this key'),
 
+                        Forms\Components\TextInput::make('key')
+                            ->label('Secret Key')
+                            ->password()
+                            ->revealable()
+                            ->readOnly()
+                             ->extraInputAttributes(['readonly' => true])
+                            ->visible(fn ($record) => $record !== null)
+                            ->suffixAction(
+                                Forms\Components\Actions\Action::make('copy')
+                                    ->icon('heroicon-m-clipboard')
+                                    ->action(fn ($state, $livewire) => $livewire->js("window.navigator.clipboard.writeText('{$state}'); \$tooltip('Copied!', { timeout: 1500 });"))
+                            ),
+
                         Forms\Components\Select::make('type')
                             ->label('Key Type')
                             ->options([
@@ -58,29 +71,47 @@ class ApiKeyResource extends Resource
                             ->disabledOn('edit'),
 
                         Forms\Components\CheckboxList::make('scopes')
-                            ->label('Permissions')
+                            ->label('Permissions (Legacy)')
                             ->options([
                                 'read' => '📖 Read - View & list data',
                                 'write' => '✏️ Write - Create & update data',
                                 'delete' => '🗑️ Delete - Remove data',
                             ])
-                            ->default(fn ($get) => $get('type') === 'secret' 
-                                ? ['read', 'write', 'delete'] 
+                            ->default(fn ($get) => $get('type') === 'secret'
+                                ? ['read', 'write', 'delete']
                                 : ['read'])
                             ->columns(3)
                             ->helperText('Select what this key can do'),
 
-                        Forms\Components\Select::make('allowed_tables')
+                        Forms\Components\CheckboxList::make('permissions')
+                            ->label('Key Capabilities')
+                            ->options([
+                                'read' => 'Read (GET)',
+                                'create' => 'Create (POST)',
+                                'update' => 'Update (PUT/PATCH)',
+                                'delete' => 'Delete (DELETE)',
+                            ])
+                            ->descriptions([
+                                'read' => 'View records',
+                                'create' => 'Add new records',
+                                'update' => 'Modify existing records',
+                                'delete' => 'Remove records (Destructive)',
+                            ])
+                            ->columns(2)
+                            ->bulkToggleable()
+                            ->default(['read'])
+                            ->helperText('Granular permissions for this API key. Leave empty for unrestricted access.'),
+
+                        Forms\Components\CheckboxList::make('allowed_tables')
                             ->label('Allowed Tables')
-                            ->multiple()
-                            ->searchable()
-                            ->preload()
                             ->options(function () {
                                 return DynamicModel::where('is_active', true)
                                     ->pluck('display_name', 'table_name')
                                     ->toArray();
                             })
-                            ->helperText('Leave empty to allow access to ALL tables. Select specific tables to restrict.'),
+                            ->columns(3)
+                            ->gridDirection('column')
+                            ->helperText('Select specific tables to restrict access. Leave empty for ALL tables.'),
 
                         Forms\Components\DateTimePicker::make('expires_at')
                             ->label('Expiration Date')
@@ -112,38 +143,44 @@ class ApiKeyResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->emptyStateIcon('heroicon-o-key')
+            ->emptyStateHeading('No API Keys Yet')
+            ->emptyStateDescription('Create your first key to start integrating your apps.')
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Name')
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
+                    ->color('primary')
                     ->icon('heroicon-o-key'),
 
                 Tables\Columns\TextColumn::make('masked_key')
                     ->label('Key')
                     ->copyable()
                     ->copyableState(fn ($record) => $record->key)
-                    ->copyMessage('🔑 API Key copied!')
+                    ->copyMessage('API Key copied!')
                     ->fontFamily('mono')
                     ->color('gray'),
 
-                Tables\Columns\BadgeColumn::make('type')
+                Tables\Columns\TextColumn::make('type')
                     ->label('Type')
-                    ->colors([
-                        'gray' => 'public',
-                        'danger' => 'secret',
-                    ])
-                    ->icons([
-                        'heroicon-o-lock-open' => 'public',
-                        'heroicon-o-lock-closed' => 'secret',
-                    ]),
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => ucfirst($state))
+                    ->color(fn (string $state): string => match ($state) {
+                        'public' => 'gray',
+                        'secret' => 'danger',
+                    })
+                    ->icon(fn (string $state): string => match ($state) {
+                        'public' => 'heroicon-o-lock-open',
+                        'secret' => 'heroicon-o-lock-closed',
+                    }),
 
                 Tables\Columns\TextColumn::make('scopes')
                     ->label('Scopes')
                     ->badge()
                     ->separator(',')
-                    ->color('primary'),
+                    ->color('info'),
 
                 Tables\Columns\TextColumn::make('allowed_tables')
                     ->label('Tables')
@@ -153,17 +190,13 @@ class ApiKeyResource extends Resource
                     ->placeholder('All Tables')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('danger'),
+                Tables\Columns\ToggleColumn::make('is_active')
+                    ->label('Active'),
 
                 Tables\Columns\TextColumn::make('last_used_at')
                     ->label('Last Used')
-                    ->dateTime('M j, Y H:i')
+                    ->since()
+                    ->color(fn ($state) => $state ? 'success' : 'gray')
                     ->placeholder('Never')
                     ->sortable()
                     ->color('gray'),

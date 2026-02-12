@@ -62,4 +62,15 @@ class DynamicModel extends Model
     {
         return $this->hasMany(DynamicRelationship::class, 'related_model_id');
     }
+
+    /**
+     * 🎯 Fix 2: Global Search Intelligence
+     */
+    public function getGlobalSearchResultDetails(): array
+    {
+        return [
+            'Table' => $this->table_name,
+            'API' => $this->generate_api ? '✅' : '❌',
+        ];
+    }
 }

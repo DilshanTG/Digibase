@@ -44,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->font('Inter')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->sidebarCollapsibleOnDesktop()
+            ->spa()
             ->maxContentWidth('full')
             ->navigationGroups([
                 'Data Engine',
@@ -90,6 +91,30 @@ class AdminPanelProvider extends PanelProvider
                 FilamentSpatieLaravelHealthPlugin::make()
                     ->authorize(fn () => auth()->check() && auth()->id() === 1)
             )
+            ->plugin(
+                \Awcodes\Overlook\OverlookPlugin::make()
+                    ->sort(2)
+                    ->columns([
+                        'default' => 1,
+                        'sm' => 2,
+                        'md' => 3,
+                        'lg' => 4,
+                        'xl' => 5,
+                        '2xl' => null,
+                    ])
+                    ->includes([
+                        \App\Filament\Resources\UserResource::class,
+                        \App\Filament\Resources\ApiKeyResource::class,
+                        \App\Filament\Resources\DynamicModelResource::class,
+                        \App\Filament\Resources\Webhooks\WebhookResource::class,
+                    ])
+                    ->icons([
+                        'users' => 'heroicon-o-users',
+                        'api_keys' => 'heroicon-o-key',
+                        'dynamic_models' => 'heroicon-o-cube',
+                        'webhooks' => 'heroicon-o-paper-airplane',
+                    ])
+            )
             ->databaseNotifications()
             ->navigationItems([
                 NavigationItem::make('API Docs')
@@ -119,6 +144,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
+                \Awcodes\Overlook\Widgets\OverlookWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

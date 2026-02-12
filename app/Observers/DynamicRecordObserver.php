@@ -33,7 +33,7 @@ class DynamicRecordObserver
 
         if ($tableName) {
             $data = $this->filterHiddenFields($tableName, $record->toArray());
-            event(new ModelChanged($tableName, 'created', $data));
+            $this->broadcastEvent(new ModelChanged($tableName, 'created', $data));
             $this->clearTableCache($tableName);
         }
     }
@@ -45,13 +45,13 @@ class DynamicRecordObserver
         if ($tableName) {
             // Detect soft delete
             if ($record->wasChanged('deleted_at') && !empty($record->getAttribute('deleted_at'))) {
-                event(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
+                $this->broadcastEvent(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
                 $this->clearTableCache($tableName);
                 return;
             }
 
             $data = $this->filterHiddenFields($tableName, $record->toArray());
-            event(new ModelChanged($tableName, 'updated', $data));
+            $this->broadcastEvent(new ModelChanged($tableName, 'updated', $data));
             $this->clearTableCache($tableName);
         }
     }
@@ -61,8 +61,31 @@ class DynamicRecordObserver
         $tableName = $record->getTable();
 
         if ($tableName) {
-            event(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
+            $this->broadcastEvent(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
             $this->clearTableCache($tableName);
+        }
+    }
+
+    /**
+     * Broadcast event with graceful failure handling.
+     * If broadcasting fails (e.g., Reverb not running), log and continue.
+     */
+    protected function broadcastEvent($event): void
+    {
+        try {
+            event($event);
+        } catch (\Illuminate\Broadcasting\BroadcastException $e) {
+            // Broadcasting failed (likely Reverb not running) - log and continue
+            \Illuminate\Support\Facades\Log::debug('Broadcasting failed (Reverb not running)', [
+                'event' => get_class($event),
+                'error' => $e->getMessage(),
+            ]);
+        } catch (\Throwable $e) {
+            // Other errors - log but don't break the app
+            \Illuminate\Support\Facades\Log::warning('Event broadcasting error', [
+                'event' => get_class($event),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

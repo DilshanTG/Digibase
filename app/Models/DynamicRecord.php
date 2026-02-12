@@ -10,10 +10,13 @@ use Spatie\Activitylog\LogOptions;
 
 /**
  * DynamicRecord: A flexible model for dynamic tables.
- * 
+ *
  * Now supports Spatie Media Library for professional file handling.
  * Event broadcasting and cache clearing are handled by
  * DynamicRecordObserver (registered in AppServiceProvider).
+ *
+ * Note: SoftDeletes are handled conditionally in queries, not via trait,
+ * to avoid conflicts with tables that don't have soft deletes enabled.
  */
 class DynamicRecord extends Model implements HasMedia
 {

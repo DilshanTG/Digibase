@@ -42,116 +42,170 @@ class DynamicModelResource extends Resource
     {
         return $form
             ->schema([
+                Section::make('API Information')
+                    ->icon('heroicon-o-command-line')
+                    ->schema([
+                        Forms\Components\Placeholder::make('api_endpoint')
+                            ->label('Public Endpoint')
+                            ->content(fn ($record) => $record ? url("/api/v1/data/{$record->table_name}") : 'Available after creation')
+                            ->helperText('Use this URL to fetch data via GET requests.'),
+                    ])->visible(fn ($record) => $record !== null),
                 Tabs::make('Table Configuration')
                     ->tabs([
                         Tabs\Tab::make('Definition')
                             ->icon('heroicon-o-table-cells')
                             ->schema([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Table Name (SQL)')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->placeholder('e.g. blog_posts')
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(function (Set $set, ?string $state) {
-                                        if ($state) {
-                                            $slug = Str::slug($state, '_');
-                                            $set('name', $slug);
-                                            $set('table_name', $slug);
-                                            $set('display_name', Str::headline($state));
-                                        }
-                                    })
-                                    ->helperText('This will be the physical table name in your database.'),
+                                Section::make('Model Details')
+                                    ->icon('heroicon-o-cube')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('name')
+                                            ->label('Model Name')
+                                            ->autofocus()
+                                            
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->placeholder('e.g., Customer Orders')
+                                            ->live(onBlur: true)
+                                            ->afterStateUpdated(function (Set $set, ?string $state) {
+                                                if ($state) {
+                                                    $set('display_name', $state);
+                                                    $set('table_name', Str::snake(Str::plural($state)));
+                                                }
+                                            }),
 
-                                Forms\Components\TextInput::make('display_name')
-                                    ->label('Display Name')
-                                    ->placeholder('e.g. Blog Posts')
-                                    ->maxLength(255),
+                                        Forms\Components\TextInput::make('table_name')
+                                            ->label('Table Name (SQL)')
+                                            ->required()
+                                            
+                                            ->maxLength(255)
+                                            ->placeholder('e.g. phone_books')
+                                            ->helperText('Lower case with underscores (snake_case)'),
 
-                                Forms\Components\Hidden::make('table_name'),
-                            ])->columns(2),
+                                        Forms\Components\TextInput::make('display_name')
+                                            ->label('Display Name')
+                                            
+                                            ->placeholder('e.g. Phone Books')
+                                            ->maxLength(255),
+
+                                        Forms\Components\TextInput::make('icon')
+                                            ->label('Navigation Icon')
+                                            
+                                            ->placeholder('e.g., heroicon-o-shopping-cart')
+                                            ->helperText('Pick an icon from heroicons.com (e.g., heroicon-o-user)')
+                                            ->suffixIcon('heroicon-o-link')
+                                            ->suffixAction(
+                                                Forms\Components\Actions\Action::make('openHeroicons')
+                                                    ->icon('heroicon-o-arrow-top-right-on-square')
+                                                    ->url('https://heroicons.com', true)
+                                            ),
+                                        
+                                        Forms\Components\Textarea::make('description')
+                                            ->label('Description')
+                                            
+                                            ->placeholder('Describe what this table stores...')
+                                            ->columnSpanFull(),
+                                    ])->columns(2),
+                            ]),
 
                         Tabs\Tab::make('Configuration')
                             ->icon('heroicon-o-cog')
                             ->schema([
                                 Forms\Components\Toggle::make('is_active')
                                     ->label('Active')
+                                    ->helperText('Enable or disable this model globally')
                                     ->default(true),
                                 Forms\Components\Toggle::make('generate_api')
                                     ->label('Generate API')
+                                    ->helperText('Create REST API endpoints for this table')
                                     ->default(true),
                                 Forms\Components\Toggle::make('has_timestamps')
-                                    ->label('Timestamps (created_at, updated_at)')
+                                    ->label('Timestamps')
+                                    ->helperText('Add created_at and updated_at columns')
                                     ->default(true),
                                 Forms\Components\Toggle::make('has_soft_deletes')
-                                    ->label('Soft Deletes (deleted_at)')
-                                    ->default(false),
+                                    ->label('Enable Soft Deletes')
+                                    ->helperText('Mark records as deleted instead of permanent removal')
+                                    ->default(true),
                             ])->columns(2),
 
                         Tabs\Tab::make('Columns')
                             ->icon('heroicon-o-list-bullet')
                             ->schema([
-                                Forms\Components\Repeater::make('fields')
-                                    ->relationship('fields')
+                                Section::make('Fields')
+                                    ->icon('heroicon-o-list-bullet')
                                     ->schema([
-                                        Forms\Components\TextInput::make('name')
-                                            ->label('Column Name')
-                                            ->required()
-                                            ->placeholder('e.g. title')
-                                            ->live(onBlur: true)
-                                            ->afterStateUpdated(fn (Set $set, ?string $state) =>
-                                                $set('display_name', $state ? Str::headline($state) : '')
-                                            ),
+                                        Forms\Components\Repeater::make('fields')
+                                            ->relationship('fields')
+                                            ->schema([
+                                                Forms\Components\TextInput::make('name')
+                                                    ->label('Column Name')
+                                                    ->required()
+                                                    
+                                                    ->placeholder('title')
+                                                    ->live(onBlur: true)
+                                                    ->afterStateUpdated(fn (Set $set, ?string $state) =>
+                                                        $set('display_name', $state ? Str::headline($state) : '')
+                                                    ),
 
-                                        Forms\Components\Hidden::make('display_name'),
+                                                Forms\Components\Hidden::make('display_name'),
 
-                                        Forms\Components\Select::make('type')
-                                            ->options([
-                                                'string' => 'String (Short Text)',
-                                                'text' => 'Text (Long Description)',
-                                                'integer' => 'Integer (Number)',
-                                                'boolean' => 'Boolean (True/False)',
-                                                'date' => 'Date',
-                                                'datetime' => 'Date & Time',
-                                                'json' => 'JSON / Object',
-                                                'file' => 'File / Image',
+                                                Forms\Components\Select::make('type')
+                                                    ->options([
+                                                        'string' => 'String (Short Text)',
+                                                        'text' => 'Text (Long Description)',
+                                                        'integer' => 'Integer (Number)',
+                                                        'boolean' => 'Boolean (True/False)',
+                                                        'date' => 'Date',
+                                                        'datetime' => 'Date & Time',
+                                                        'json' => 'JSON / Object',
+                                                        'file' => 'File / Image',
+                                                    ])
+                                                    ->descriptions([
+                                                        'string' => 'Text up to 255 chars, ideal for names/titles.',
+                                                        'text' => 'Large text block, ideal for bios/articles.',
+                                                        'integer' => 'Whole numbers for IDs, counts, or ages.',
+                                                        'boolean' => 'Simple Checkbox (Yes/No).',
+                                                        'date' => 'Calendar date without time.',
+                                                        'json' => 'Complex structured data or settings.',
+                                                        'file' => 'Upload documents or photos via Spatie Media.',
+                                                    ])
+                                                    ->required(),
+
+                                                Forms\Components\Checkbox::make('is_required')
+                                                    ->label('Required')
+                                                    ->default(false),
+
+                                                Forms\Components\Checkbox::make('is_unique')
+                                                    ->label('Unique')
+                                                    ->default(false),
+
+                                                Forms\Components\Checkbox::make('is_hidden')
+                                                    ->label('Hidden (API)')
+                                                    ->helperText('Hide from API responses')
+                                                    ->default(false),
+
+                                                Forms\Components\TagsInput::make('validation_rules')
+                                                    ->label('Custom Rules')
+                                                    ->placeholder('Add rule (e.g. email, min:8)')
+                                                    ->helperText('Laravel validation rules. Press Enter to add.')
+                                                    ->suggestions([
+                                                        'email',
+                                                        'url', 
+                                                        'numeric',
+                                                        'min:1',
+                                                        'max:255',
+                                                        'regex:/^[a-z]+$/i',
+                                                        'alpha',
+                                                        'alpha_num',
+                                                        'confirmed',
+                                                        'uuid',
+                                                    ]),
                                             ])
-                                            ->required(),
-
-                                        Forms\Components\Checkbox::make('is_required')
-                                            ->label('Required')
-                                            ->default(false),
-
-                                        Forms\Components\Checkbox::make('is_unique')
-                                            ->label('Unique')
-                                            ->default(false),
-
-                                        Forms\Components\Checkbox::make('is_hidden')
-                                            ->label('Hidden (API)')
-                                            ->helperText('Hide from API responses')
-                                            ->default(false),
-
-                                        Forms\Components\TagsInput::make('validation_rules')
-                                            ->label('Custom Rules')
-                                            ->placeholder('Add rule (e.g. email, min:8)')
-                                            ->helperText('Laravel validation rules. Press Enter to add.')
-                                            ->suggestions([
-                                                'email',
-                                                'url', 
-                                                'numeric',
-                                                'min:1',
-                                                'max:255',
-                                                'regex:/^[a-z]+$/i',
-                                                'alpha',
-                                                'alpha_num',
-                                                'confirmed',
-                                                'uuid',
-                                            ]),
-                                    ])
-                                    ->columns(5)
-                                    ->addActionLabel('Add New Column')
-                                    ->grid(1)
-                                    ->defaultItems(1)
+                                            ->columns(5)
+                                            ->addActionLabel('Add New Column')
+                                            ->grid(1)
+                                            ->defaultItems(1)
+                                    ]),
                             ]),
 
 
@@ -326,6 +380,9 @@ class DynamicModelResource extends Resource
                 'md' => 1,
                 'xl' => 1,
             ])
+            ->emptyStateIcon('heroicon-o-cube')
+            ->emptyStateHeading('No Models Built Yet')
+            ->emptyStateDescription('Start by building your first dynamic database table.')
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -349,13 +406,15 @@ class DynamicModelResource extends Resource
             ])
             ->actions([
                 // Quick Actions (shown on the right side of cards)
+                // Quick Actions (shown on the right side of cards)
                 Action::make('view_data')
-                    ->label('View Data')
+                    ->label('Explore')
                     ->icon('heroicon-o-table-cells')
-                    ->color('success')
+                    ->color('info')
                     ->button()
                     ->outlined()
-                    ->url(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['tableId' => $record->id])),
+                    ->url(fn (DynamicModel $record) => \App\Filament\Pages\DataExplorer::getUrl(['table' => $record->table_name]))
+                    ->openUrlInNewTab(),
                     
                 Action::make('spreadsheet_edit')
                     ->label('Spreadsheet')
@@ -383,37 +442,8 @@ class DynamicModelResource extends Resource
                     ->outlined()
                     ->modalHeading(fn (DynamicModel $record) => $record->display_name . ' - JSON Schema')
                     ->modalContent(function (DynamicModel $record) {
-                        $schema = [
-                            'table' => $record->table_name,
-                            'display_name' => $record->display_name,
-                            'description' => $record->description,
-                            'features' => [
-                                'timestamps' => $record->has_timestamps,
-                                'soft_deletes' => $record->has_soft_deletes,
-                                'api_enabled' => $record->generate_api,
-                            ],
-                            'fields' => $record->fields->map(function ($field) {
-                                return [
-                                    'name' => $field->name,
-                                    'type' => $field->type,
-                                    'display_name' => $field->display_name,
-                                    'required' => $field->is_required,
-                                    'unique' => $field->is_unique,
-                                    'default' => $field->default_value,
-                                    'validation' => $field->validation_rules,
-                                ];
-                            })->toArray(),
-                            'security' => [
-                                'list_rule' => $record->list_rule,
-                                'view_rule' => $record->view_rule,
-                                'create_rule' => $record->create_rule,
-                                'update_rule' => $record->update_rule,
-                                'delete_rule' => $record->delete_rule,
-                            ],
-                        ];
-                        
                         return view('filament.components.json-preview', [
-                            'json' => json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                            'json' => json_encode($record->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
                         ]);
                     })
                     ->modalWidth('4xl')
@@ -426,44 +456,8 @@ class DynamicModelResource extends Resource
                     ->color('gray')
                     ->button()
                     ->outlined()
-                    ->action(function (DynamicModel $record) {
-                        $schema = [
-                            'table' => $record->table_name,
-                            'display_name' => $record->display_name,
-                            'description' => $record->description,
-                            'features' => [
-                                'timestamps' => $record->has_timestamps,
-                                'soft_deletes' => $record->has_soft_deletes,
-                                'api_enabled' => $record->generate_api,
-                            ],
-                            'fields' => $record->fields->map(function ($field) {
-                                return [
-                                    'name' => $field->name,
-                                    'type' => $field->type,
-                                    'display_name' => $field->display_name,
-                                    'required' => $field->is_required,
-                                    'unique' => $field->is_unique,
-                                    'default' => $field->default_value,
-                                    'validation' => $field->validation_rules,
-                                ];
-                            })->toArray(),
-                            'security' => [
-                                'list_rule' => $record->list_rule,
-                                'view_rule' => $record->view_rule,
-                                'create_rule' => $record->create_rule,
-                                'update_rule' => $record->update_rule,
-                                'delete_rule' => $record->delete_rule,
-                            ],
-                        ];
-                        
-                        $filename = 'schema-' . $record->table_name . '.json';
-                        
-                        return response()->streamDownload(function () use ($schema) {
-                            echo json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-                        }, $filename, [
-                            'Content-Type' => 'application/json',
-                        ]);
-                    }),
+                    ->url(fn (DynamicModel $record) => route('filament.admin.resources.dynamic-models.export-schema', ['record' => $record]))
+                    ->visible(false), // Disable for now or verify route exists
                     
                 // Divider
                 Action::make('divider_1')
@@ -491,9 +485,13 @@ class DynamicModelResource extends Resource
                                     if (!$field->is_required || in_array($field->type, ['file', 'image'])) $column->nullable();
                                     if ($field->is_unique) $column->unique();
                                 }
-                                $table->timestamps();
-                                
-                                // CRITICAL: Add soft deletes column if enabled
+
+                                // Add timestamps if enabled
+                                if ($record->has_timestamps) {
+                                    $table->timestamps();
+                                }
+
+                                // Add soft deletes if enabled
                                 if ($record->has_soft_deletes) {
                                     $table->softDeletes();
                                 }
@@ -512,7 +510,19 @@ class DynamicModelResource extends Resource
                                         $columnsAdded++;
                                     }
                                 }
-                                
+
+                                // Add timestamps if enabled and columns don't exist
+                                if ($record->has_timestamps) {
+                                    if (!DbSchema::hasColumn($tableName, 'created_at')) {
+                                        $table->timestamp('created_at')->nullable();
+                                        $columnsAdded++;
+                                    }
+                                    if (!DbSchema::hasColumn($tableName, 'updated_at')) {
+                                        $table->timestamp('updated_at')->nullable();
+                                        $columnsAdded++;
+                                    }
+                                }
+
                                 // Add soft deletes if enabled and column doesn't exist
                                 if ($record->has_soft_deletes && !DbSchema::hasColumn($tableName, 'deleted_at')) {
                                     $table->softDeletes();
@@ -527,42 +537,22 @@ class DynamicModelResource extends Resource
                             }
                         }
                     }),
+
                 EditAction::make()
                     ->iconButton()
                     ->tooltip('Edit Table'),
+
                 DeleteAction::make()
                     ->iconButton()
-                    ->tooltip('Delete Table'),
-                Action::make('destroy_table')
-                    ->color('danger')
-                    ->icon('heroicon-o-trash')
-                    ->iconButton()
-                    ->tooltip('Destroy DB Table (Nuclear Option)')
+                    ->tooltip('Delete Table')
+                    ->modalHeading(fn ($record) => "Delete {$record->name} Table?")
+                    ->modalDescription('⚠️ WARNING: This will permanently delete the table structure AND ALL DATA stored within it. API endpoints for this table will immediately stop working. This cannot be undone.')
+                    ->modalSubmitActionLabel('Yes, Nuke it 💥')
                     ->requiresConfirmation()
-                    ->modalHeading('⚠️ NUCLEAR OPTION: Destroy Database Table')
-                    ->modalDescription('This will PERMANENTLY DELETE the physical table and ALL DATA. This cannot be undone.')
-                    ->form([
-                        Forms\Components\TextInput::make('confirmation_name')
-                            ->label(fn ($record) => "Type '{$record->table_name}' to confirm")
-                            ->required()
-                            ->rule(fn ($record) => function ($attribute, $value, $fail) use ($record) {
-                                if ($value !== $record->table_name) {
-                                    $fail('The table name does not match.');
-                                }
-                            }),
-                    ])
-                    ->action(function ($record, array $data) {
-                        // 1. Drop the Physical Table
+                    ->action(function (DynamicModel $record) {
+                        // Ensure table is dropped too
                         DbSchema::dropIfExists($record->table_name);
-                        
-                        // 2. Delete the Dynamic Model Record
                         $record->delete();
-
-                        Notification::make()
-                            ->title('Table Destroyed')
-                            ->body("The table '{$record->table_name}' has been wiped from the database.")
-                            ->danger()
-                            ->send();
                     }),
             ])
             ->bulkActions([

@@ -31,6 +31,11 @@ class WebhookResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'API & Integration';
     protected static ?int $navigationSort = 2;
 
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) static::getModel()::where('is_active', true)->count();
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -108,6 +113,9 @@ class WebhookResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->emptyStateIcon('heroicon-o-paper-airplane')
+            ->emptyStateHeading('No Webhooks Found')
+            ->emptyStateDescription('Webhooks allow you to push data to other services automatically.')
             ->columns([
                 Tables\Columns\TextColumn::make('dynamicModel.display_name')
                     ->label('Table')

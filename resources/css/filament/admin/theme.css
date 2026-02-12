@@ -7,7 +7,8 @@
     --color-primary-200: #c7d2fe;
     --color-primary-300: #a5b4fc;
     --color-primary-400: #818cf8;
-    --color-primary-500: #6366f1; /* PocketBase Indigo */
+    --color-primary-500: #6366f1;
+    /* PocketBase Indigo */
     --color-primary-600: #4f46e5;
     --color-primary-700: #4338ca;
     --color-primary-800: #3730a3;
@@ -40,7 +41,10 @@
 }
 
 /* Smooth Transitions */
-button, input, a, .fi-sidebar-item {
+button,
+input,
+a,
+.fi-sidebar-item {
     @apply transition-all duration-200 ease-in-out;
 }
 
@@ -50,7 +54,8 @@ button, input, a, .fi-sidebar-item {
 }
 
 /* Sharper Borders & Subtle Shadows */
-.fi-section, .fi-card {
+.fi-section,
+.fi-card {
     @apply border-gray-200/60 shadow-sm ring-1 ring-gray-950/5 dark:border-white/10 dark:bg-gray-900 dark:ring-white/10;
     border-radius: 0.5rem;
 }
@@ -58,4 +63,14 @@ button, input, a, .fi-sidebar-item {
 /* High-Contrast Inputs */
 .fi-input-wrapper {
     @apply border-gray-300 shadow-none focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:border-white/10;
+}
+
+/* 🎯 Fix 3: Global Font Polish */
+.fi-ta-header-cell-label {
+    @apply font-bold tracking-tight text-gray-900 dark:text-gray-100 uppercase text-xs;
+}
+
+/* 🎯 Fix 25: Sticky Save Management */
+.fi-form-actions.fi-sticky {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur shadow-lg border-t border-gray-200 dark:border-white/10;
 }

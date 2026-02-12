@@ -61,14 +61,33 @@ class VerifyApiKey
             ], 403);
         }
 
-        // 5. Check Method-Based Permissions
-        $methodScope = $this->getMethodScope($request->method());
-        if ($methodScope && !$apiKey->hasScope($methodScope)) {
-            return response()->json([
-                'success' => false,
-                'message' => "This API key cannot perform {$request->method()} operations. Required scope: {$methodScope}",
-                'error_code' => 'METHOD_NOT_ALLOWED',
-            ], 403);
+        // 5. Check Method-Based Permissions (New Granular System)
+        if (!is_null($apiKey->permissions)) {
+            $requiredPermission = match (strtoupper($request->method())) {
+                'GET', 'HEAD' => 'read',
+                'POST' => 'create',
+                'PUT', 'PATCH' => 'update',
+                'DELETE' => 'delete',
+                default => null,
+            };
+
+            if ($requiredPermission && !in_array($requiredPermission, $apiKey->permissions)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This API Key lacks the '{$requiredPermission}' permission.",
+                    'error_code' => 'INSUFFICIENT_PERMISSION',
+                ], 403);
+            }
+        } else {
+            // Fallback to Legacy Scope System
+            $methodScope = $this->getMethodScope($request->method());
+            if ($methodScope && !$apiKey->hasScope($methodScope)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This API key cannot perform {$request->method()} operations. Required scope: {$methodScope}",
+                    'error_code' => 'METHOD_NOT_ALLOWED',
+                ], 403);
+            }
         }
 
         // 6. Check Table-Level Access (if route has a tableName parameter)

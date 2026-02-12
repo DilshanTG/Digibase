@@ -13,6 +13,12 @@ class ListApiKeys extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('view_docs')
+                ->label('API Documentation')
+                ->icon('heroicon-o-book-open')
+                ->color('gray')
+                ->url('/docs/api')
+                ->openUrlInNewTab(),
             Actions\CreateAction::make()
                 ->label('Generate New Token'),
         ];

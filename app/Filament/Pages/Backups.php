@@ -11,7 +11,7 @@ class Backups extends BaseBackups
 {
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-server';
 
-    protected string $view = 'filament.pages.backups';
+
 
     protected static string|UnitEnum|null $navigationGroup = 'Monitoring & Logs';
 

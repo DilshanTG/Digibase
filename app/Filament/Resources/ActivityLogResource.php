@@ -20,6 +20,11 @@ class ActivityLogResource extends Resource
     protected static ?string $modelLabel = 'Activity Log';
     protected static ?string $pluralModelLabel = 'Activity Logs';
 
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) static::getModel()::where('created_at', '>=', now()->subDay())->count();
+    }
+
     public static function canCreate(): bool
     {
         return false;
@@ -46,6 +51,9 @@ class ActivityLogResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->emptyStateIcon('heroicon-o-clipboard-document-list')
+            ->emptyStateHeading('No Activity Recorded')
+            ->emptyStateDescription('Audit logs will appear here as you interact with the system.')
             ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('ID')
@@ -59,7 +67,8 @@ class ActivityLogResource extends Resource
 
                 Tables\Columns\TextColumn::make('description')
                     ->searchable()
-                    ->limit(50),
+                    ->limit(50)
+                    ->tooltip(fn($state) => $state),
 
                 Tables\Columns\TextColumn::make('subject_type')
                     ->label('Subject')
@@ -72,10 +81,12 @@ class ActivityLogResource extends Resource
 
                 Tables\Columns\TextColumn::make('causer.name')
                     ->label('User')
-                    ->searchable(),
+                    ->searchable()
+                    ->placeholder('System'),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->label('Log Time')
+                    ->since()
                     ->sortable(),
             ])
             ->defaultSort('created_at', 'desc')

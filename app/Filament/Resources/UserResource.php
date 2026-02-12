@@ -65,22 +65,36 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->emptyStateIcon('heroicon-o-users')
+            ->emptyStateHeading('No Users Found')
+            ->emptyStateDescription('Start by creating an administrator or team member.')
             ->columns([
+                Tables\Columns\ImageColumn::make('avatar_url')
+                    ->label('')
+                    ->circular()
+                    ->defaultImageUrl(fn ($record) => 'https://ui-avatars.com/api/?name=' . urlencode($record->name) . '&color=FFFFFF&background=6366f1'),
+
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->copyable()
+                    ->icon('heroicon-o-envelope')
+                    ->color('gray'),
 
                 Tables\Columns\TextColumn::make('roles.name')
                     ->badge()
-                    ->color('primary'),
+                    ->color('indigo'),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime('M j, Y')
-                    ->sortable(),
+                    ->label('Joined')
+                    ->since()
+                    ->sortable()
+                    ->color('gray'),
             ])
             ->filters([])
             ->actions([

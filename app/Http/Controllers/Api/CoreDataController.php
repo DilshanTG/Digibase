@@ -1075,22 +1075,24 @@ class CoreDataController extends Controller
         $recordData = (array) $record;
 
         try {
-            $this->executeInTransaction(function () use ($model, $tableName, $id) {
+            $this->executeInTransaction(function () use ($request, $model, $tableName, $id) {
                 $recordInstance = new DynamicRecord();
                 $recordInstance->setDynamicTable($tableName);
-                
+
                 $pdoRecord = $recordInstance->findOrFail($id);
                 $pdoRecord->setDynamicTable($tableName);
                 $pdoRecord->timestamps = false;
 
-                if ($model->has_soft_deletes) {
+                $forceDelete = $request->has('force') && $request->boolean('force');
+
+                if ($model->has_soft_deletes && !$forceDelete) {
                     $softDeleteData = ['deleted_at' => now()];
                     if ($model->has_timestamps) {
                         $softDeleteData['updated_at'] = now();
                     }
                     $pdoRecord->update($softDeleteData);
                 } else {
-                    $pdoRecord->delete();
+                    $pdoRecord->forceDelete();
                 }
             });
 
@@ -1111,6 +1113,62 @@ class CoreDataController extends Controller
             
             return response()->json([
                 'message' => 'Failed to delete record',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+            ], 500);
+        }
+    }
+
+    /**
+     * Restore a soft-deleted record.
+     */
+    public function restore(Request $request, string $tableName, int $id): JsonResponse
+    {
+        $model = $this->getModel($tableName);
+
+        if (!$model) {
+            return response()->json(['message' => 'Model not found'], 404);
+        }
+
+        if (!$model->has_soft_deletes) {
+            return response()->json(['message' => 'This model does not support soft deletes'], 400);
+        }
+
+        $tableName = $model->table_name;
+
+        if (!Schema::hasTable($tableName)) {
+            return response()->json(['message' => 'Table does not exist'], 404);
+        }
+
+        $exists = DB::table($tableName)
+            ->where('id', $id)
+            ->whereNotNull('deleted_at')
+            ->exists();
+
+        if (!$exists) {
+            return response()->json(['message' => 'Record not found or not deleted'], 404);
+        }
+
+        try {
+            DB::table($tableName)
+                ->where('id', $id)
+                ->update([
+                    'deleted_at' => null,
+                    'updated_at' => $model->has_timestamps ? now() : DB::raw('updated_at')
+                ]);
+
+            return response()->json([
+                'message' => 'Record restored successfully',
+                'data' => ['id' => $id]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Record restoration failed', [
+                'table' => $tableName,
+                'id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to restore record',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }

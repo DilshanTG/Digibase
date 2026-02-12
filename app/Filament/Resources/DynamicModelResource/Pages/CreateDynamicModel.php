@@ -67,13 +67,26 @@ class CreateDynamicModel extends CreateRecord
                     }
                 }
 
-                $table->timestamps();
+                if ($model->has_timestamps) {
+                    $table->timestamps();
+                }
+
+                if ($model->has_soft_deletes) {
+                    $table->softDeletes();
+                }
             });
 
             Notification::make()
                 ->success()
                 ->title('Table Created Successfully')
                 ->body("Database table '{$tableName}' is now ready!")
+                ->actions([
+                    \Filament\Notifications\Actions\Action::make('explore')
+                        ->label('Go to Data Explorer')
+                        ->url(\App\Filament\Pages\DataExplorer::getUrl(['table' => $tableName]))
+                        ->button()
+                        ->color('success'),
+                ])
                 ->send();
 
         } catch (\Exception $e) {

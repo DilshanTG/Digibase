@@ -18,6 +18,7 @@ class ApiKey extends Model
         'key_hash',         // SHA-256 of key for indexed O(1) lookup
         'type',             // 'public' or 'secret'
         'scopes',           // JSON array: ['read', 'write', 'delete']
+        'permissions',      // JSON array: ['read', 'create', 'update', 'delete']
         'allowed_tables',   // JSON array: ['posts', 'comments'] or null/empty for all
         'rate_limit',       // Requests per minute
         'is_active',
@@ -27,6 +28,7 @@ class ApiKey extends Model
 
     protected $casts = [
         'scopes' => 'array',
+        'permissions' => 'array',
         'allowed_tables' => 'array',
         'is_active' => 'boolean',
         'expires_at' => 'datetime',
@@ -83,8 +85,9 @@ class ApiKey extends Model
      */
     public static function generateKey(string $type = 'public'): string
     {
-        $prefix = $type === 'secret' ? 'sk_' : 'pk_';
-        return $prefix . Str::random(32);
+        // 🎯 Fix 19: Digibase Prefixing
+        $prefix = $type === 'secret' ? 'dg_sk_' : 'dg_pk_';
+        return $prefix . Str::random(40);
     }
 
     /**

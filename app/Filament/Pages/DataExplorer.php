@@ -47,6 +47,15 @@ class DataExplorer extends Page implements HasTable
     {
         if (!$this->tableId) {
             $this->tableId = request()->query('tableId') ?? request()->query('tableid');
+            
+            // Handle 'table' (name) parameter
+            $tableNameParam = request()->query('table');
+            if (!$this->tableId && $tableNameParam) {
+                $model = DynamicModel::where('table_name', $tableNameParam)->first();
+                if ($model) {
+                    $this->tableId = $model->id;
+                }
+            }
         }
         $this->isSpreadsheet = (bool) request()->query('spreadsheet');
     }
@@ -192,31 +201,73 @@ class DataExplorer extends Page implements HasTable
 
         // 3. Build Dynamic Columns
         $columns = [];
-        $columns[] = TextColumn::make('id')->sortable();
+        $columns[] = TextColumn::make('id')
+            ->sortable()
+            ->badge()
+            ->color('gray')
+            ->copyable()
+            ->alignEnd();
 
         if ($dynamicModel->fields->isNotEmpty()) {
+            $index = 0;
             foreach ($dynamicModel->fields as $field) {
-                // Use SpatieMediaLibraryImageColumn for file/image fields
+                $index++;
+                $column = null;
+
+                // 🎯 Category B: Image Rendering & Boolean Polish
                 if (in_array($field->type, ['file', 'image'])) {
-                    $columns[] = SpatieMediaLibraryImageColumn::make($field->name)
-                        ->label($field->display_name ?? Str::headline($field->name))
-                        ->collection('files')
+                    $column = SpatieMediaLibraryImageColumn::make($field->name)
+                        ->collection($field->type === 'image' ? 'images' : 'files')
                         ->conversion('thumb')
                         ->circular(false)
                         ->stacked()
                         ->limit(3);
+                } elseif ($field->type === 'boolean') {
+                    $column = IconColumn::make($field->name)
+                        ->boolean()
+                        ->trueIcon('heroicon-o-check-circle')
+                        ->falseIcon('heroicon-o-x-circle')
+                        ->trueColor('success')
+                        ->falseColor('danger');
                 } else {
-                    // Use TextColumn for safe display (XSS protection)
-                    $columns[] = TextColumn::make($field->name)
-                        ->label($field->display_name ?? Str::headline($field->name))
-                        ->sortable()
-                        ->searchable()
-                        ->limit(50); // Truncate long text
+                    $column = TextColumn::make($field->name)
+                        ->limit(50)
+                        ->tooltip(fn ($state) => $state)
+                        ->copyable()
+                        ->html()
+                        ->formatStateUsing(function ($state) {
+                            if (is_string($state) && Str::startsWith($state, 'http') && preg_match('/\.(jpg|jpeg|png|webp|gif|svg)$/i', $state)) {
+                                return '<img src="'.$state.'" class="h-10 w-10 object-cover rounded shadow-sm border border-gray-200 dark:border-gray-700 hover:scale-150 transition-transform cursor-zoom-in overflow-hidden" />';
+                            }
+                            return $state;
+                        });
+
+                    if (in_array($field->type, ['integer', 'decimal', 'float', 'number'])) {
+                        $column->alignEnd();
+                    }
                 }
+
+                $columns[] = $column
+                    ->label($field->display_name ?? Str::headline($field->name))
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: $index > 5);
             }
         }
         
-        $columns[] = TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true);
+        $columns[] = TextColumn::make('created_at')
+            ->label('Created')
+            ->since()
+            ->sortable()
+            ->toggleable()
+            ->color('gray');
+            
+        $columns[] = TextColumn::make('updated_at')
+            ->label('Updated')
+            ->since()
+            ->sortable()
+            ->toggleable(isToggledHiddenByDefault: true)
+            ->color('gray');
 
         // 4. Configure the Table
         return $table
@@ -250,7 +301,8 @@ class DataExplorer extends Page implements HasTable
                         $record->setTable($dynamicModel->table_name); 
                         $record->delete();
                     }),
-            ]);
+            ])
+            ->striped();
     }
 
     /**
