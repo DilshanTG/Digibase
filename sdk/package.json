@@ -1,0 +1,31 @@
+{
+  "name": "@digibase/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for Digibase API",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "digibase",
+    "api",
+    "sdk",
+    "typescript",
+    "baas",
+    "backend"
+  ],
+  "author": "Digibase Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "index.ts",
+    "types.ts",
+    "query.ts",
+    "storage.ts",
+    "README.md"
+  ]
+}

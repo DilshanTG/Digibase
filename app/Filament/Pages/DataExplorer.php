@@ -81,68 +81,7 @@ class DataExplorer extends Page implements HasTable
                 ->color($this->isSpreadsheet ? 'gray' : 'primary')
                 ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
                 ->visible(fn () => $this->tableId !== null),
-            Action::make('import')
-                ->label('Import CSV')
-                ->icon('heroicon-o-arrow-up-tray')
-                ->color('warning')
-                ->form([
-                    FileUpload::make('file')
-                        ->label('CSV File')
-                        ->acceptedFileTypes(['text/csv', 'text/plain', 'application/vnd.ms-excel'])
-                        ->disk('local')
-                        ->directory('temp-imports')
-                        ->required(),
-                ])
-                ->action(function (array $data) {
-                    $dynamicModel = DynamicModel::find($this->tableId);
-                    if (!$dynamicModel) return;
 
-                    $path = Storage::disk('local')->path($data['file']);
-                    
-                    if (!file_exists($path)) {
-                        Notification::make()->title('File not found')->danger()->send();
-                        return;
-                    }
-
-                    $handle = fopen($path, 'r');
-                    $header = fgetcsv($handle);
-                    
-                    if (!$header) {
-                        Notification::make()->title('Empty or invalid CSV')->danger()->send();
-                        return;
-                    }
-                    
-                    $count = 0;
-                    while (($row = fgetcsv($handle)) !== false) {
-                        if (count($header) !== count($row)) continue;
-                        
-                        $recordData = array_combine($header, $row);
-                        
-                        $record = new DynamicRecord();
-                        $record->setTable($dynamicModel->table_name);
-                        
-                        foreach ($recordData as $key => $value) {
-                             if ($value === '' || $value === null) $value = null;
-                             $record->{$key} = $value;
-                        }
-                        
-                        try {
-                            $record->save();
-                            $count++;
-                        } catch (\Exception $e) {
-                            // Continue on error
-                        }
-                    }
-                    
-                    fclose($handle);
-                    Storage::disk('local')->delete($data['file']);
-                    
-                    Notification::make()
-                        ->title("Imported {$count} records successfully")
-                        ->success()
-                        ->send();
-                })
-                ->visible(fn () => $this->tableId !== null),
             Action::make('downloadTemplate')
                 ->label('Download Template')
                 ->icon('heroicon-o-document-arrow-down')
@@ -189,6 +128,8 @@ class DataExplorer extends Page implements HasTable
         if (! $dynamicModel) {
             return $table->query(DynamicModel::query()->where('id', 0));
         }
+
+        $tableName = $dynamicModel->table_name;
 
         // 2.1 Check if physical table exists
         if (! Schema::hasTable($dynamicModel->table_name)) {
