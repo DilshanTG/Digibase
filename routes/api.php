@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DatabaseController;
 use App\Http\Controllers\Api\DynamicModelController;
 use App\Http\Controllers\Api\CoreDataController;
+use App\Http\Controllers\Api\MediaController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -52,6 +53,10 @@ Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::
     Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
     Route::post('/data/{tableName}/{id}/restore', [CoreDataController::class, 'restore']);
+
+    // Media Upload & Management
+    Route::post('/upload', [MediaController::class, 'upload']);
+    Route::delete('/media', [MediaController::class, 'delete']);
 });
 
 // LEGACY COMPATIBILITY ROUTING (Mapped to CoreDataController)
@@ -65,6 +70,10 @@ Route::middleware(['api.key', 'throttle:60,1', App\Http\Middleware\ApiRateLimite
     Route::post('/data/{tableName}/bulk', [CoreDataController::class, 'bulkStore']);
     Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
+
+    // Media Upload & Management (Legacy)
+    Route::post('/upload', [MediaController::class, 'upload']);
+    Route::delete('/media', [MediaController::class, 'delete']);
 });
 
 // Protected routes (Sanctum)

@@ -414,6 +414,38 @@ class DataExplorer extends Page implements HasTable
                                 ->send();
                         }
                     }),
+
+                Action::make('export_csv')
+                    ->label('Export CSV')
+                    ->icon('heroicon-m-arrow-down-tray')
+                    ->color('info')
+                    ->action(function () use ($tableName, $dynamicModel) {
+                        return response()->streamDownload(function () use ($tableName, $dynamicModel) {
+                            $handle = fopen('php://output', 'w');
+
+                            // Fetch records in chunks to prevent memory crash
+                            $query = DB::table($tableName);
+
+                            // Exclude soft-deleted records if soft deletes enabled
+                            if ($dynamicModel->has_soft_deletes && Schema::hasColumn($tableName, 'deleted_at')) {
+                                $query->whereNull('deleted_at');
+                            }
+
+                            $query->orderBy('id');
+
+                            // Get columns
+                            $columns = Schema::getColumnListing($tableName);
+                            fputcsv($handle, $columns); // Header row
+
+                            $query->chunk(500, function ($rows) use ($handle) {
+                                foreach ($rows as $row) {
+                                    fputcsv($handle, (array) $row);
+                                }
+                            });
+
+                            fclose($handle);
+                        }, $tableName . '_export_' . now()->format('Y-m-d_H-i') . '.csv');
+                    }),
             ])
             ->actions([
                 EditAction::make()

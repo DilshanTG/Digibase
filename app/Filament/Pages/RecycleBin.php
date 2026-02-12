@@ -244,8 +244,8 @@ class RecycleBin extends Page implements HasTable
             $deletedRecords = $deletedRecords->merge($records);
         }
 
-        // Sort by deleted_at descending
-        return $deletedRecords->sortByDesc('deleted_at')->values();
+        // Key by the record's unique ID for selection logic
+        return $deletedRecords->sortByDesc('deleted_at')->keyBy(ArrayRecord::getKeyName());
     }
 
 
