@@ -893,6 +893,117 @@ class CoreDataController extends Controller
     }
 
     /**
+     * Bulk insert records into a dynamic model.
+     * 🚀 HIGH PERFORMANCE: Batch insert for up to 1000 records
+     * 🛡️ SAFETY: Column validation to prevent SQL injection
+     * ⏱️ OPTIMIZED: Single query for all inserts
+     */
+    public function bulkStore(Request $request, string $tableName): JsonResponse
+    {
+        // 1. Resolve Model
+        $model = $this->getModel($tableName);
+
+        if (!$model) {
+            return response()->json(['message' => 'Model not found'], 404);
+        }
+
+        if (!$this->validateRule($model->create_rule)) {
+            return response()->json(['message' => 'Access denied by security rules'], 403);
+        }
+
+        $tableName = $model->table_name;
+
+        if (!Schema::hasTable($tableName)) {
+            return response()->json(['message' => 'Table does not exist'], 404);
+        }
+
+        // 2. Validate Structure
+        $records = $request->input('data');
+        if (!is_array($records) || empty($records)) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['data' => ['Input must be an array of objects under "data" key']]
+            ], 400);
+        }
+
+        // 3. Limit Batch Size (Safety for Shared Hosting)
+        if (count($records) > 1000) {
+            return response()->json([
+                'message' => 'Batch size limit exceeded',
+                'errors' => ['data' => ['Maximum 1000 records allowed per batch']]
+            ], 413);
+        }
+
+        // 4. Prepare Data
+        $now = now();
+        $insertData = [];
+
+        // Get valid columns to prevent SQL injection
+        $allowedColumns = Schema::getColumnListing($tableName);
+
+        // Get field names from model for validation
+        $modelFields = $model->fields->pluck('name')->toArray();
+
+        foreach ($records as $index => $record) {
+            if (!is_array($record)) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => ["data.{$index}" => ['Each record must be an object/array']]
+                ], 422);
+            }
+
+            $cleanRecord = [];
+            foreach ($record as $key => $value) {
+                // Allow only valid columns and exclude 'id' (auto-increment)
+                if (in_array($key, $allowedColumns) && $key !== 'id') {
+                    $cleanRecord[$key] = $value;
+                }
+            }
+
+            // Add Timestamps if enabled
+            if ($model->has_timestamps) {
+                $cleanRecord['created_at'] = $now;
+                $cleanRecord['updated_at'] = $now;
+            }
+
+            $insertData[] = $cleanRecord;
+        }
+
+        // 5. Execute Insert (Fastest Method - Single Query)
+        try {
+            $this->executeInTransaction(function () use ($tableName, $insertData) {
+                DB::table($tableName)->insert($insertData);
+            });
+
+            event(new ModelActivity('bulk_created', $model->name, ['count' => count($insertData)], $request->user()));
+
+            $this->triggerWebhooks($model->id, 'bulk_created', [
+                'table' => $tableName,
+                'count' => count($insertData),
+            ]);
+
+            return response()->json([
+                'message' => count($insertData) . ' records inserted successfully',
+                'data' => [
+                    'count' => count($insertData),
+                    'table' => $tableName,
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Bulk insert failed', [
+                'table' => $tableName,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Bulk insert failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
      * Update a record in a dynamic model.
      * 🔒 TRANSACTION WRAPPER: Atomic operation
      * 🎯 TYPE-SAFE CASTING: Strict type enforcement

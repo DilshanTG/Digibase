@@ -48,6 +48,7 @@ Route::prefix('v1')->middleware(['api.key', App\Http\Middleware\ApiRateLimiter::
     Route::get('/data/{tableName}/{id}', [CoreDataController::class, 'show']);
 
     Route::post('/data/{tableName}', [CoreDataController::class, 'store']);
+    Route::post('/data/{tableName}/bulk', [CoreDataController::class, 'bulkStore']);
     Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
     Route::post('/data/{tableName}/{id}/restore', [CoreDataController::class, 'restore']);
@@ -61,6 +62,7 @@ Route::middleware(['api.key', 'throttle:60,1', App\Http\Middleware\ApiRateLimite
     Route::get('/data/{tableName}/{id}', [CoreDataController::class, 'show']);
     
     Route::post('/data/{tableName}', [CoreDataController::class, 'store']);
+    Route::post('/data/{tableName}/bulk', [CoreDataController::class, 'bulkStore']);
     Route::put('/data/{tableName}/{id}', [CoreDataController::class, 'update']);
     Route::delete('/data/{tableName}/{id}', [CoreDataController::class, 'destroy']);
 });

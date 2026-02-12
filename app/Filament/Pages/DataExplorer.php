@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\DynamicModel;
 use App\Models\DynamicRecord;
 use Filament\Pages\Page;
+use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -14,6 +15,8 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\DatePicker;
@@ -26,6 +29,8 @@ use BackedEnum;
 use UnitEnum;
 use Filament\Forms\Components\FileUpload;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Notifications\Notification;
 
 class DataExplorer extends Page implements HasTable
@@ -272,7 +277,13 @@ class DataExplorer extends Page implements HasTable
         // 4. Configure the Table
         return $table
             ->query(function () use ($dynamicModel) {
-                return (new DynamicRecord())->setDynamicTable($dynamicModel->table_name)->newQuery();
+                $query = (new DynamicRecord())->setDynamicTable($dynamicModel->table_name)->newQuery();
+                
+                if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
+                    $query->whereNull('deleted_at');
+                }
+                
+                return $query;
             })
             ->columns($columns)
             ->heading($dynamicModel->display_name . " Data")
@@ -286,6 +297,123 @@ class DataExplorer extends Page implements HasTable
                         $record->save();
                         return $record;
                     }),
+
+                Action::make('import_csv')
+                    ->label('Import CSV')
+                    ->icon('heroicon-m-arrow-up-tray')
+                    ->color('success')
+                    ->form([
+                        \Filament\Forms\Components\FileUpload::make('attachment')
+                            ->label('Upload CSV File')
+                            ->disk('local')
+                            ->directory('csv-imports')
+                            ->acceptedFileTypes(['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/csv'])
+                            ->required()
+                            ->helperText('Upload a CSV file with column headers matching your table fields.'),
+                    ])
+                    ->action(function (array $data) use ($dynamicModel) {
+                        $tableName = $dynamicModel->table_name;
+
+                        // 1. Open File
+                        $path = storage_path('app/' . $data['attachment']);
+
+                        if (!file_exists($path)) {
+                            Notification::make()
+                                ->title('Error: File not found')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $handle = fopen($path, 'r');
+
+                        if (!$handle) {
+                            Notification::make()
+                                ->title('Error opening file')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        try {
+                            // 2. Read Header
+                            $header = fgetcsv($handle, 1000, ',');
+
+                            if (!$header) {
+                                throw new \Exception('CSV file is empty or invalid');
+                            }
+
+                            // 3. Process Rows
+                            $batch = [];
+                            $now = now();
+                            $rowCount = 0;
+                            $errorRows = [];
+
+                            // Get valid columns to prevent SQL errors
+                            $allowedColumns = Schema::getColumnListing($tableName);
+
+                            while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                                $rowCount++;
+
+                                // Map header to row values
+                                if (count($header) == count($row)) {
+                                    $record = array_combine($header, $row);
+
+                                    // Filter only allowed columns
+                                    $cleanRecord = [];
+                                    foreach ($record as $key => $value) {
+                                        if (in_array($key, $allowedColumns) && $key !== 'id') {
+                                            $cleanRecord[$key] = $value;
+                                        }
+                                    }
+
+                                    // Add timestamps if enabled
+                                    if ($dynamicModel->has_timestamps) {
+                                        $cleanRecord['created_at'] = $now;
+                                        $cleanRecord['updated_at'] = $now;
+                                    }
+
+                                    $batch[] = $cleanRecord;
+                                } else {
+                                    $errorRows[] = $rowCount;
+                                }
+
+                                // Chunk Insert (Prevent Memory Overload)
+                                if (count($batch) >= 200) {
+                                    DB::table($tableName)->insert($batch);
+                                    $batch = [];
+                                }
+                            }
+
+                            // Insert Remaining
+                            if (!empty($batch)) {
+                                DB::table($tableName)->insert($batch);
+                            }
+
+                            fclose($handle);
+                            @unlink($path); // Cleanup
+
+                            $message = count($errorRows) > 0
+                                ? "Imported {$rowCount} records with " . count($errorRows) . " skipped rows"
+                                : "Successfully imported {$rowCount} records";
+
+                            Notification::make()
+                                ->title('Import Complete')
+                                ->body($message)
+                                ->success()
+                                ->send();
+
+                        } catch (\Exception $e) {
+                            fclose($handle);
+                            @unlink($path);
+
+                            Notification::make()
+                                ->title('Import Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ])
             ->actions([
                 EditAction::make()
@@ -298,9 +426,45 @@ class DataExplorer extends Page implements HasTable
                     }),
                 DeleteAction::make()
                     ->using(function ($record) use ($dynamicModel) {
-                        $record->setTable($dynamicModel->table_name); 
+                        $record->setTable($dynamicModel->table_name);
+                        
+                        if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
+                            DB::table($dynamicModel->table_name)
+                                ->where('id', $record->id)
+                                ->update(['deleted_at' => now()]);
+                            
+                            Notification::make()
+                                ->title('Record moved to Recycle Bin')
+                                ->success()
+                                ->send();
+                            return;
+                        }
+                        
                         $record->delete();
                     }),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->using(function (\Illuminate\Support\Collection $records) use ($dynamicModel) {
+                            foreach ($records as $record) {
+                                $record->setTable($dynamicModel->table_name);
+                                
+                                if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
+                                    DB::table($dynamicModel->table_name)
+                                        ->where('id', $record->id)
+                                        ->update(['deleted_at' => now()]);
+                                } else {
+                                    $record->delete();
+                                }
+                            }
+                            
+                            Notification::make()
+                                ->title($dynamicModel->has_soft_deletes ? 'Selected records moved to Recycle Bin' : 'Selected records deleted')
+                                ->success()
+                                ->send();
+                        }),
+                ]),
             ])
             ->striped();
     }
