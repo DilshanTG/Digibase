@@ -33,6 +33,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // 🛡️ Iron Dome: Ensure API always returns JSON on errors
+        if (request()->is('api/*')) {
+            request()->headers->set('Accept', 'application/json');
+        }
+
         // 🧠 CENTRAL NERVOUS SYSTEM: Register the Observer
         DynamicRecord::observe(DynamicRecordObserver::class);
 

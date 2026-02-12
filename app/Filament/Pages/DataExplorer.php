@@ -45,58 +45,36 @@ class DataExplorer extends Page implements HasTable
 
     protected string $view = 'filament.pages.data-explorer';
 
-    public ?string $tableId = null;
+    public ?string $tableName = null;
+    public ?DynamicModel $dynamicModel = null;
     public bool $isSpreadsheet = false;
 
     public function mount(): void
     {
-        // 🛡️ Iron Dome: Handle both 'table' (name) and 'tableId' (ID) parameters
+        // 🛡️ Iron Dome: Full System Stabilization
         $table = request()->query('table');
-        $tableId = request()->query('tableId') ?? request()->query('tableid');
 
-        // Security: Check if table exists in our metadata
-        $validModel = null;
+        // 1. Validation: Check if table exists
+        $model = DynamicModel::where('table_name', $table)->first();
 
-        if ($table) {
-            $validModel = DynamicModel::where('table_name', $table)->first();
-        } elseif ($tableId) {
-            $validModel = DynamicModel::where('id', $tableId)->first();
-        } elseif ($this->tableId) {
-            $validModel = DynamicModel::where('id', $this->tableId)->first();
-        }
-
-        if (!$table && !$tableId && !$this->tableId) {
-            // Fallback: Try to find the first available model
-            $firstModel = DynamicModel::first();
-
-            if ($firstModel) {
-                // Redirect to a valid table
-                $this->redirect(static::getUrl(['table' => $firstModel->table_name]));
+        if (!$model) {
+            // Safe Fallback: Redirect to the first available table
+            $first = DynamicModel::first();
+            if ($first) {
+                $this->redirect(static::getUrl(['table' => $first->table_name]));
                 return;
             } else {
-                // Absolute Zero State (No tables exist yet)
+                // Absolute Empty State
                 Notification::make()
-                    ->title('No tables found. Create a model first.')
+                    ->title('No tables found. Please create a Model first.')
                     ->warning()
                     ->send();
                 return;
             }
         }
 
-        // If parameter provided but model not found, redirect to first available
-        if (($table || $tableId) && !$validModel) {
-            $firstModel = DynamicModel::first();
-            if ($firstModel) {
-                $this->redirect(static::getUrl(['table' => $firstModel->table_name]));
-                return;
-            }
-        }
-
-        // Set the tableId for the component
-        if ($validModel) {
-            $this->tableId = $validModel->id;
-        }
-
+        $this->tableName = $table;
+        $this->dynamicModel = $model;
         $this->isSpreadsheet = (bool) request()->query('spreadsheet');
     }
 
@@ -107,37 +85,36 @@ class DataExplorer extends Page implements HasTable
                 ->label('API Docs')
                 ->icon('heroicon-o-book-open')
                 ->color('info')
-                ->url(fn () => route('filament.admin.pages.api-documentation', ['model' => $this->tableId]))
+                ->url(fn () => route('filament.admin.pages.api-documentation', ['model' => $this->dynamicModel?->id]))
                 ->openUrlInNewTab()
-                ->visible(fn () => $this->tableId !== null),
+                ->visible(fn () => $this->dynamicModel?->id !== null),
             Action::make('toggleSpreadsheet')
                 ->label($this->isSpreadsheet ? 'Standard View' : 'Spreadsheet View')
                 ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
                 ->color($this->isSpreadsheet ? 'gray' : 'primary')
                 ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
-                ->visible(fn () => $this->tableId !== null),
+                ->visible(fn () => $this->dynamicModel?->id !== null),
 
             Action::make('downloadTemplate')
                 ->label('Download Template')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
-                    $dynamicModel = DynamicModel::find($this->tableId);
-                    if (!$dynamicModel) return;
+                    if (!$this->dynamicModel) return;
 
-                    $headers = $dynamicModel->fields->pluck('name')->toArray();
-                    
+                    $headers = $this->dynamicModel->fields->pluck('name')->toArray();
+
                     if (empty($headers)) {
-                        $headers = ['name', 'created_at']; 
+                        $headers = ['name', 'created_at'];
                     }
 
                     return response()->streamDownload(function () use ($headers) {
                         $handle = fopen('php://output', 'w');
                         fputcsv($handle, $headers);
                         fclose($handle);
-                    }, $dynamicModel->table_name . '-template.csv');
+                    }, $this->dynamicModel->table_name . '-template.csv');
                 })
-                ->visible(fn () => $this->tableId !== null),
+                ->visible(fn () => $this->dynamicModel !== null),
             ExportAction::make()
                 ->label('Export to Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -145,25 +122,21 @@ class DataExplorer extends Page implements HasTable
                 ->exports([
                     \pxlrbt\FilamentExcel\Exports\ExcelExport::make()
                         ->fromTable()
-                        ->withFilename($this->tableId . '-' . date('Y-m-d') . '.xlsx'),
+                        ->withFilename($this->dynamicModel?->id . '-' . date('Y-m-d') . '.xlsx'),
                 ])
-                ->visible(fn () => $this->tableId !== null),
+                ->visible(fn () => $this->dynamicModel?->id !== null),
         ];
     }
 
     public function table(Table $table): Table
     {
         // 1. If no table is selected, show an empty state
-        if (! $this->tableId) {
+        if (! $this->dynamicModel) {
             return $table->query(DynamicModel::query()->where('id', 0))->heading('Select a table to view data');
         }
 
-        // 2. Load the Dynamic Model definition
-        $dynamicModel = DynamicModel::find($this->tableId);
-        if (! $dynamicModel) {
-            return $table->query(DynamicModel::query()->where('id', 0));
-        }
-
+        // 2. Use the loaded Dynamic Model definition
+        $dynamicModel = $this->dynamicModel;
         $tableName = $dynamicModel->table_name;
 
         // 2.1 Check if physical table exists
