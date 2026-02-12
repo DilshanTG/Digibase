@@ -10,6 +10,19 @@ Route::get('/', function () {
 // JavaScript SDK
 Route::get('/sdk/digibase.js', [SdkController::class, 'generate'])->name('sdk.js');
 
+// 🛡️ Self-Healing Storage Link
+Route::get('/fix-storage', function () {
+    $target = storage_path('app/public');
+    $link = public_path('storage');
+
+    if (file_exists($link)) {
+        return '✅ Storage link already exists.';
+    }
+
+    app('files')->link($target, $link);
+    return '✅ Storage link created successfully!';
+})->name('fix.storage');
+
 // Development Login Route
 if (app()->environment('local', 'testing')) {
     Route::get('/dev/login/{id}', function ($id) {

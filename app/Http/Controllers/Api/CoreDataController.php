@@ -333,6 +333,17 @@ class CoreDataController extends Controller
     }
 
     /**
+     * 🛡️ SANITIZE PAYLOAD: Convert arrays/objects to JSON strings for DB storage.
+     * Prevents "Array to String" crashes when using DB::table()->insert().
+     */
+    private function sanitizePayload(array $data): array
+    {
+        return collect($data)->map(function ($value) {
+            return is_array($value) || is_object($value) ? json_encode($value) : $value;
+        })->toArray();
+    }
+
+    /**
      * 🔒 TRANSACTION WRAPPER: Execute mutation in atomic transaction.
      *
      * Uses DB::transaction() with 5 retry attempts to handle SQLite
@@ -978,7 +989,8 @@ class CoreDataController extends Controller
                 $cleanRecord['updated_at'] = $now;
             }
 
-            $insertData[] = $cleanRecord;
+            // 🛡️ Sanitize payload to prevent Array to String crashes
+            $insertData[] = $this->sanitizePayload($cleanRecord);
         }
 
         // 5. Execute Insert (Fastest Method - Single Query)

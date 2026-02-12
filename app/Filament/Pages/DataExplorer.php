@@ -130,9 +130,9 @@ class DataExplorer extends Page implements HasTable
 
     public function table(Table $table): Table
     {
-        // 1. If no table is selected, show an empty state
-        if (! $this->dynamicModel) {
-            return $table->query(DynamicModel::query()->where('id', 0))->heading('Select a table to view data');
+        // 🛡️ Guard Clause: Prevent white screen if state is lost
+        if (!$this->tableName || !$this->dynamicModel) {
+            return $table->columns([])->emptyStateHeading('No table selected');
         }
 
         // 2. Use the loaded Dynamic Model definition
