@@ -878,16 +878,28 @@ class CoreDataController extends Controller
             // Response is already clean due to DynamicRecord::toArray() override
 
             return response()->json(['data' => $responseData], 201);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // 🛡️ Iron Dome: Handle DB Constraints (Unique, Type mismatch, Foreign Key)
+            Log::error('Database constraint violation', [
+                'table' => $tableName,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+
+            return response()->json([
+                'error' => 'Database Constraint Violation',
+                'message' => config('app.debug') ? $e->getMessage() : 'Data validation failed at database level'
+            ], 400);
         } catch (\Exception $e) {
             Log::error('Record creation failed', [
                 'table' => $tableName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
-                'message' => 'Failed to create record',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'error' => 'Server Error',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -1140,6 +1152,19 @@ class CoreDataController extends Controller
             }
 
             return response()->json(['data' => $responseData]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // 🛡️ Iron Dome: Handle DB Constraints (Unique, Type mismatch, Foreign Key)
+            Log::error('Database constraint violation on update', [
+                'table' => $tableName,
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+
+            return response()->json([
+                'error' => 'Database Constraint Violation',
+                'message' => config('app.debug') ? $e->getMessage() : 'Data validation failed at database level'
+            ], 400);
         } catch (\Exception $e) {
             Log::error('Record update failed', [
                 'table' => $tableName,
@@ -1147,10 +1172,10 @@ class CoreDataController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
-                'message' => 'Failed to update record',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'error' => 'Server Error',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }
@@ -1215,16 +1240,29 @@ class CoreDataController extends Controller
             ]);
 
             return response()->json(['message' => 'Record deleted successfully']);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // 🛡️ Iron Dome: Handle DB Constraints (Foreign Key violations during delete)
+            Log::error('Database constraint violation on delete', [
+                'table' => $tableName,
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+
+            return response()->json([
+                'error' => 'Database Constraint Violation',
+                'message' => config('app.debug') ? $e->getMessage() : 'Cannot delete: record is referenced by other data'
+            ], 400);
         } catch (\Exception $e) {
             Log::error('Record deletion failed', [
                 'table' => $tableName,
                 'id' => $id,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
-                'message' => 'Failed to delete record',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'error' => 'Server Error',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
             ], 500);
         }
     }

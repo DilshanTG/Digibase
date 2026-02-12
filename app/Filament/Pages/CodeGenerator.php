@@ -76,13 +76,10 @@ class CodeGenerator extends Page implements HasForms
 
     public function generate(): void
     {
-        // 🛡️ Iron Dome: Validate model selection
+        // 🛡️ Iron Dome: Validate model selection with graceful fallback
         if (!$this->model_id) {
-            $this->generatedCode = '';
-            Notification::make()
-                ->warning()
-                ->title('Please select a table first!')
-                ->send();
+            // Graceful exit with helpful message
+            $this->generatedCode = "```tsx\n// Please select a table from the dropdown above to generate code.\n```";
             return;
         }
 
@@ -107,7 +104,7 @@ class CodeGenerator extends Page implements HasForms
                 ->body($e->getMessage())
                 ->send();
 
-            $this->generatedCode = '';
+            $this->generatedCode = "```tsx\n// Error: " . $e->getMessage() . "\n```";
         }
     }
 }

@@ -50,37 +50,51 @@ class DataExplorer extends Page implements HasTable
 
     public function mount(): void
     {
-        if (!$this->tableId) {
-            $this->tableId = request()->query('tableId') ?? request()->query('tableid');
+        // 🛡️ Iron Dome: Handle both 'table' (name) and 'tableId' (ID) parameters
+        $table = request()->query('table');
+        $tableId = request()->query('tableId') ?? request()->query('tableid');
 
-            // Handle 'table' (name) parameter
-            $tableNameParam = request()->query('table');
-            if (!$this->tableId && $tableNameParam) {
-                $model = DynamicModel::where('table_name', $tableNameParam)->first();
-                if ($model) {
-                    $this->tableId = $model->id;
-                }
+        // Security: Check if table exists in our metadata
+        $validModel = null;
+
+        if ($table) {
+            $validModel = DynamicModel::where('table_name', $table)->first();
+        } elseif ($tableId) {
+            $validModel = DynamicModel::where('id', $tableId)->first();
+        } elseif ($this->tableId) {
+            $validModel = DynamicModel::where('id', $this->tableId)->first();
+        }
+
+        if (!$table && !$tableId && !$this->tableId) {
+            // Fallback: Try to find the first available model
+            $firstModel = DynamicModel::first();
+
+            if ($firstModel) {
+                // Redirect to a valid table
+                $this->redirect(static::getUrl(['table' => $firstModel->table_name]));
+                return;
+            } else {
+                // Absolute Zero State (No tables exist yet)
+                Notification::make()
+                    ->title('No tables found. Create a model first.')
+                    ->warning()
+                    ->send();
+                return;
             }
         }
 
-        // 🛡️ Iron Dome: Safe Fallback if no table is selected
-        if (!$this->tableId) {
+        // If parameter provided but model not found, redirect to first available
+        if (($table || $tableId) && !$validModel) {
             $firstModel = DynamicModel::first();
             if ($firstModel) {
-                $this->redirect(static::getUrl(['tableId' => $firstModel->id]));
+                $this->redirect(static::getUrl(['table' => $firstModel->table_name]));
                 return;
             }
-            // If no models exist at all, stay on page and show empty state
         }
 
-        // 🛡️ Iron Dome: Verify the selected table actually exists
-        if ($this->tableId && !DynamicModel::where('id', $this->tableId)->exists()) {
-            $firstModel = DynamicModel::first();
-            if ($firstModel) {
-                $this->redirect(static::getUrl(['tableId' => $firstModel->id]));
-                return;
-            }
-            $this->tableId = null; // Reset to show empty state
+        // Set the tableId for the component
+        if ($validModel) {
+            $this->tableId = $validModel->id;
         }
 
         $this->isSpreadsheet = (bool) request()->query('spreadsheet');
