@@ -52,7 +52,7 @@ class DataExplorer extends Page implements HasTable
     {
         if (!$this->tableId) {
             $this->tableId = request()->query('tableId') ?? request()->query('tableid');
-            
+
             // Handle 'table' (name) parameter
             $tableNameParam = request()->query('table');
             if (!$this->tableId && $tableNameParam) {
@@ -62,6 +62,27 @@ class DataExplorer extends Page implements HasTable
                 }
             }
         }
+
+        // 🛡️ Iron Dome: Safe Fallback if no table is selected
+        if (!$this->tableId) {
+            $firstModel = DynamicModel::first();
+            if ($firstModel) {
+                $this->redirect(static::getUrl(['tableId' => $firstModel->id]));
+                return;
+            }
+            // If no models exist at all, stay on page and show empty state
+        }
+
+        // 🛡️ Iron Dome: Verify the selected table actually exists
+        if ($this->tableId && !DynamicModel::where('id', $this->tableId)->exists()) {
+            $firstModel = DynamicModel::first();
+            if ($firstModel) {
+                $this->redirect(static::getUrl(['tableId' => $firstModel->id]));
+                return;
+            }
+            $this->tableId = null; // Reset to show empty state
+        }
+
         $this->isSpreadsheet = (bool) request()->query('spreadsheet');
     }
 

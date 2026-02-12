@@ -96,6 +96,20 @@ class DynamicRecord extends Model implements HasMedia
             ->useLogName($this->getTable())
             ->logAll();
     }
+
+    /**
+     * 🛡️ Iron Dome: Override getAttribute for null safety.
+     * Ensures accessing non-existent attributes returns null instead of throwing errors.
+     */
+    public function getAttribute($key)
+    {
+        try {
+            return parent::getAttribute($key);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
     /**
      * Override toArray to strict snake_case keys globally.
      * Also strips internal table prefixes from joined relations.
@@ -111,7 +125,7 @@ class DynamicRecord extends Model implements HasMedia
             if (is_string($key) && str_starts_with($key, $prefix)) {
                 $key = substr($key, strlen($prefix));
             }
-            
+
             // 2. Snake Case Conversion (e.g. Phone Name -> phone_name)
             $cleaned[\Illuminate\Support\Str::snake($key)] = $value;
         }

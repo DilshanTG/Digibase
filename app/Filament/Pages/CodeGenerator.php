@@ -6,11 +6,11 @@ use App\Models\DynamicModel;
 use App\Services\CodeGeneratorService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\MarkdownEditor;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use BackedEnum;
@@ -30,7 +30,7 @@ class CodeGenerator extends Page implements HasForms
     public ?int $model_id = null;
     public string $generatedCode = '';
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -76,8 +76,13 @@ class CodeGenerator extends Page implements HasForms
 
     public function generate(): void
     {
+        // 🛡️ Iron Dome: Validate model selection
         if (!$this->model_id) {
             $this->generatedCode = '';
+            Notification::make()
+                ->warning()
+                ->title('Please select a table first!')
+                ->send();
             return;
         }
 
