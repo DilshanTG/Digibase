@@ -1,0 +1,306 @@
+/* Universal Data Nexus - Slate & Emerald Theme with Glassmorphism */
+
+/* Base Theme Colors */
+:root {
+    --nexus-slate-50: #f8fafc;
+    --nexus-slate-100: #f1f5f9;
+    --nexus-slate-200: #e2e8f0;
+    --nexus-slate-300: #cbd5e1;
+    --nexus-slate-400: #94a3b8;
+    --nexus-slate-500: #64748b;
+    --nexus-slate-600: #475569;
+    --nexus-slate-700: #334155;
+    --nexus-slate-800: #1e293b;
+    --nexus-slate-900: #0f172a;
+    --nexus-slate-950: #020617;
+
+    --nexus-emerald-50: #ecfdf5;
+    --nexus-emerald-100: #d1fae5;
+    --nexus-emerald-200: #a7f3d0;
+    --nexus-emerald-300: #6ee7b7;
+    --nexus-emerald-400: #34d399;
+    --nexus-emerald-500: #10b981;
+    --nexus-emerald-600: #059669;
+    --nexus-emerald-700: #047857;
+    --nexus-emerald-800: #065f46;
+    --nexus-emerald-900: #064e3b;
+}
+
+/* Glassmorphism Base Classes */
+.glass-nexus {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.glass-nexus-light {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Animations */
+@keyframes nexus-pulse-emerald {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+}
+
+@keyframes nexus-glow-emerald {
+
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(16, 185, 129, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+    }
+}
+
+@keyframes nexus-slide-up {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Universal Data Nexus Styles */
+.data-nexus-container {
+    background: linear-gradient(135deg, var(--nexus-slate-900) 0%, var(--nexus-slate-950) 100%);
+    min-height: 100vh;
+}
+
+/* Split Screen Layout */
+.nexus-split-screen {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    height: calc(100vh - 200px);
+}
+
+@media (max-width: 1024px) {
+    .nexus-split-screen {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
+/* Live Preview Component */
+.data-nexus-live-preview {
+    background: var(--nexus-slate-900);
+    border: 1px solid var(--nexus-emerald-500);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.data-nexus-live-preview:hover {
+    border-color: var(--nexus-emerald-400);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+/* Badge Animations */
+.nexus-badge-sync {
+    animation: nexus-pulse-emerald 2s infinite;
+}
+
+.nexus-badge-glow {
+    animation: nexus-glow-emerald 3s ease-in-out infinite;
+}
+
+/* Table Enhancements */
+.nexus-table {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: 0.5rem;
+}
+
+.nexus-table thead {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.nexus-table tbody tr:hover {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+/* Header Actions */
+.nexus-command-center {
+    background: var(--nexus-slate-800);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.nexus-command-btn {
+    background: var(--nexus-emerald-600);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.nexus-command-btn:hover {
+    background: var(--nexus-emerald-700);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+/* Fleet View Modal */
+.fleet-view-modal {
+    background: var(--nexus-slate-900);
+    color: var(--nexus-slate-100);
+}
+
+.fleet-view-modal .modal-header {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+    border-bottom: 1px solid var(--nexus-emerald-500);
+}
+
+/* Tab Navigation */
+.nexus-tabs {
+    background: rgba(30, 41, 59, 0.8);
+    border-radius: 0.5rem;
+    padding: 0.25rem;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.nexus-tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.nexus-tab.active {
+    background: var(--nexus-emerald-600);
+    color: white;
+}
+
+.nexus-tab:not(.active):hover {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--nexus-emerald-400);
+}
+
+/* Status Indicators */
+.nexus-status-synced {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--nexus-emerald-400);
+    border: 1px solid var(--nexus-emerald-500);
+}
+
+.nexus-status-out-of-sync {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--nexus-amber-400);
+    border: 1px solid var(--nexus-amber-500);
+}
+
+/* Micro-interactions */
+.nexus-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(16, 185, 129, 0.1);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.nexus-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+    border-color: var(--nexus-emerald-400);
+}
+
+/* Loading States */
+.nexus-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.nexus-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.3), transparent);
+    animation: nexus-loading-shimmer 2s infinite;
+}
+
+@keyframes nexus-loading-shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+/* Accessibility Improvements */
+.nexus-focus:focus {
+    outline: 2px solid var(--nexus-emerald-500);
+    outline-offset: 2px;
+}
+
+/* Dark Mode Optimizations */
+.dark .data-nexus-live-preview {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+
+    .data-nexus-live-preview,
+    .nexus-card,
+    .nexus-tab,
+    .nexus-command-btn,
+    .nexus-badge-sync,
+    .nexus-badge-glow {
+        transition: none;
+        animation: none;
+    }
+
+    .nexus-card:hover {
+        transform: none;
+    }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .nexus-split-screen {
+        gap: 1rem;
+        height: auto;
+    }
+
+    .nexus-command-center {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .nexus-tab {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+}
