@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Events\ModelActivity;
+use App\Http\Controllers\Controller;
+use App\Http\Traits\TurboCache;
 use App\Models\DynamicModel;
+use App\Models\DynamicRecord;
 use App\Models\Webhook;
 use App\Services\UrlValidator;
 use Illuminate\Http\JsonResponse;
@@ -15,15 +17,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use App\Models\DynamicRecord;
-use App\Http\Traits\TurboCache;
-use Spatie\QueryBuilder\QueryBuilder;
 use Spatie\QueryBuilder\AllowedFilter;
-use Spatie\QueryBuilder\AllowedSort;
+use Spatie\QueryBuilder\QueryBuilder;
 
 /**
  * Core Data Controller - Unified API Engine for Digibase
- * 
+ *
  * Integrations:
  * - 🛡️ Iron Dome: API key validation with scopes
  * - 🩺 Schema Doctor: Dynamic validation rules
@@ -41,9 +40,9 @@ class CoreDataController extends Controller
      */
     protected function getModel(string $tableName): ?DynamicModel
     {
-        return DynamicModel::where(function($q) use ($tableName) {
-                $q->where('name', $tableName)->orWhere('table_name', $tableName);
-            })
+        return DynamicModel::where(function ($q) use ($tableName) {
+            $q->where('name', $tableName)->orWhere('table_name', $tableName);
+        })
             ->where('is_active', true)
             ->where('generate_api', true)
             ->with('fields')
@@ -78,11 +77,17 @@ class CoreDataController extends Controller
     {
         // Default to true (allow) if no specific RLS rule is defined,
         // relying on the primary API Key / Auth middleware for security.
-        if (empty($rule)) return true;
-        
+        if (empty($rule)) {
+            return true;
+        }
+
         $rule = trim(strtolower($rule));
-        if ($rule === 'true') return true;
-        if ($rule === 'false') return false;
+        if ($rule === 'true') {
+            return true;
+        }
+        if ($rule === 'false') {
+            return false;
+        }
 
         // Check both Sanctum auth AND API Key user
         $authId = auth('sanctum')->id() ?? request()->attributes->get('api_key_user')?->id;
@@ -97,16 +102,18 @@ class CoreDataController extends Controller
         if (preg_match('/^auth\.id\s*(==|!=|===|!==)\s*(\w+)$/', $rule, $matches)) {
             $op = $matches[1];
             $field = $matches[2];
-            
-            if (!$record) return $authId !== null;
+
+            if (! $record) {
+                return $authId !== null;
+            }
 
             $val = is_object($record) ? ($record->$field ?? null) : ($record[$field] ?? null);
-            
-            return match($op) {
-                '==' => (string)$authId === (string)$val,
-                '===' => (string)$authId === (string)$val,
-                '!=' => (string)$authId !== (string)$val,
-                '!==' => (string)$authId !== (string)$val,
+
+            return match ($op) {
+                '==' => (string) $authId === (string) $val,
+                '===' => (string) $authId === (string) $val,
+                '!=' => (string) $authId !== (string) $val,
+                '!==' => (string) $authId !== (string) $val,
                 default => false,
             };
         }
@@ -114,16 +121,22 @@ class CoreDataController extends Controller
         if (str_contains($rule, '&&')) {
             $parts = array_map('trim', explode('&&', $rule));
             foreach ($parts as $part) {
-                if (!$this->validateRule($part, $record)) return false;
+                if (! $this->validateRule($part, $record)) {
+                    return false;
+                }
             }
+
             return true;
         }
 
         if (str_contains($rule, '||')) {
             $parts = array_map('trim', explode('||', $rule));
             foreach ($parts as $part) {
-                if ($this->validateRule($part, $record)) return true;
+                if ($this->validateRule($part, $record)) {
+                    return true;
+                }
             }
+
             return false;
         }
 
@@ -140,16 +153,17 @@ class CoreDataController extends Controller
             ->get();
 
         foreach ($webhooks as $webhook) {
-            if (!$webhook->shouldTrigger($event)) {
+            if (! $webhook->shouldTrigger($event)) {
                 continue;
             }
 
             $urlCheck = UrlValidator::validateWebhookUrl($webhook->url);
-            if (!$urlCheck['valid']) {
+            if (! $urlCheck['valid']) {
                 Log::warning("Webhook SSRF blocked: {$webhook->url}", [
                     'reason' => $urlCheck['reason'],
                     'webhook_id' => $webhook->id,
                 ]);
+
                 continue;
             }
 
@@ -158,10 +172,15 @@ class CoreDataController extends Controller
                 $sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'remember_token'];
                 $recordData = array_filter($recordData, function ($v, $k) use ($sensitiveKeys) {
                     $lowerKey = strtolower($k);
-                    if (in_array($lowerKey, $sensitiveKeys)) return false;
-                    foreach ($sensitiveKeys as $sensitive) {
-                        if (str_contains($lowerKey, $sensitive)) return false;
+                    if (in_array($lowerKey, $sensitiveKeys)) {
+                        return false;
                     }
+                    foreach ($sensitiveKeys as $sensitive) {
+                        if (str_contains($lowerKey, $sensitive)) {
+                            return false;
+                        }
+                    }
+
                     return true;
                 }, ARRAY_FILTER_USE_BOTH);
             }
@@ -181,10 +200,10 @@ class CoreDataController extends Controller
 
             $signature = $webhook->generateSignature($payload);
             if ($signature) {
-                $headers['X-Webhook-Signature'] = 'sha256=' . $signature;
+                $headers['X-Webhook-Signature'] = 'sha256='.$signature;
             }
 
-            if (!empty($webhook->headers)) {
+            if (! empty($webhook->headers)) {
                 $headers = array_merge($headers, $webhook->headers);
             }
 
@@ -231,7 +250,7 @@ class CoreDataController extends Controller
         foreach ($model->fields as $field) {
             $fieldRules = [];
 
-            if ($field->is_required && !$isUpdate) {
+            if ($field->is_required && ! $isUpdate) {
                 $fieldRules[] = 'required';
             } else {
                 $fieldRules[] = 'nullable';
@@ -283,8 +302,8 @@ class CoreDataController extends Controller
                     break;
                 case 'enum':
                 case 'select':
-                    if (!empty($field->options)) {
-                        $fieldRules[] = 'in:' . implode(',', $field->options);
+                    if (! empty($field->options)) {
+                        $fieldRules[] = 'in:'.implode(',', $field->options);
                     }
                     break;
                 case 'uuid':
@@ -293,14 +312,14 @@ class CoreDataController extends Controller
             }
 
             if ($field->is_unique) {
-                $uniqueRule = 'unique:' . $model->table_name . ',' . $field->name;
+                $uniqueRule = 'unique:'.$model->table_name.','.$field->name;
                 if ($isUpdate && $recordId) {
-                    $uniqueRule .= ',' . $recordId;
+                    $uniqueRule .= ','.$recordId;
                 }
                 $fieldRules[] = $uniqueRule;
             }
 
-            if (!empty($field->validation_rules) && is_array($field->validation_rules)) {
+            if (! empty($field->validation_rules) && is_array($field->validation_rules)) {
                 $fieldRules = array_merge($fieldRules, $field->validation_rules);
             }
 
@@ -357,7 +376,6 @@ class CoreDataController extends Controller
         }, 5);
     }
 
-
     /**
      * 🔗 RELATION RESOLVER: Register dynamic relations on DynamicRecord and return
      * the namespaced keys that were registered + the allowed include names.
@@ -370,10 +388,12 @@ class CoreDataController extends Controller
         $allowedIncludes = [];
 
         foreach ($model->relationships()->with('relatedModel')->get() as $relDef) {
-            if (!$relDef->relatedModel) continue;
+            if (! $relDef->relatedModel) {
+                continue;
+            }
 
             $relationName = $relDef->name;
-            $uniqueRelKey = $tableName . '__' . $relationName;
+            $uniqueRelKey = $tableName.'__'.$relationName;
             $includeMap[$relationName] = $uniqueRelKey;
             $allowedIncludes[] = $relationName;
 
@@ -381,31 +401,34 @@ class CoreDataController extends Controller
                 $relatedTable = $relDef->relatedModel->table_name;
                 $foreignKey = $relDef->foreign_key;
                 $localKey = $relDef->local_key ?? 'id';
-                $qualify = fn($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
+                $qualify = fn ($col, $table) => str_contains($col, '.') ? $col : "$table.$col";
 
                 if ($relDef->type === 'hasMany') {
-                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()).'_id';
                     $foreignKey = $qualify($foreignKey, $relatedTable);
                     $relation = $instance->hasMany(DynamicRecord::class, $foreignKey, $localKey);
                     $relation->getRelated()->setTable($relatedTable);
                     $relation->getQuery()->from($relatedTable);
+
                     return $relation;
                 }
 
                 if ($relDef->type === 'belongsTo') {
-                    $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name) . '_id';
+                    $foreignKey = $foreignKey ?: Str::singular($relDef->relatedModel->table_name).'_id';
                     $relation = $instance->belongsTo(DynamicRecord::class, $foreignKey, $localKey, $relDef->name);
                     $relation->getRelated()->setTable($relatedTable);
                     $relation->getQuery()->from($relatedTable);
+
                     return $relation;
                 }
 
                 if ($relDef->type === 'hasOne') {
-                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()) . '_id';
+                    $foreignKey = $foreignKey ?: Str::singular($instance->getTable()).'_id';
                     $foreignKey = $qualify($foreignKey, $relatedTable);
                     $relation = $instance->hasOne(DynamicRecord::class, $foreignKey, $localKey);
                     $relation->getRelated()->setTable($relatedTable);
                     $relation->getQuery()->from($relatedTable);
+
                     return $relation;
                 }
 
@@ -416,8 +439,6 @@ class CoreDataController extends Controller
         return compact('includeMap', 'allowedIncludes');
     }
 
-
-
     /**
      * List all records from a dynamic model.
      * ⚡ TURBO CACHE: Cached with automatic invalidation
@@ -425,25 +446,38 @@ class CoreDataController extends Controller
      */
     public function index(Request $request, string $tableName): JsonResponse
     {
-        $model = $this->getModel($tableName);
+        try {
+            $model = $this->getModel($tableName);
 
-        if (!$model) {
-            return response()->json(['message' => 'Model not found'], 404);
+            if (! $model) {
+                return response()->json(['message' => 'Model not found'], 404);
+            }
+
+            if (! $this->validateRule($model->list_rule)) {
+                return response()->json(['message' => 'Access denied by security rules'], 403);
+            }
+
+            $tableName = $model->table_name;
+
+            if (! Schema::hasTable($tableName)) {
+                return response()->json(['message' => 'Table does not exist'], 404);
+            }
+
+            return $this->cached($tableName, $request, function () use ($request, $model, $tableName) {
+                return $this->executeIndexQuery($request, $model, $tableName);
+            });
+        } catch (\Exception $e) {
+            Log::error('API Error in CoreDataController::index: '.$e->getMessage(), [
+                'exception' => $e,
+                'request' => $request->all(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An internal server error occurred.',
+                'error_code' => 'INTERNAL_ERROR',
+            ], 500);
         }
-
-        if (!$this->validateRule($model->list_rule)) {
-            return response()->json(['message' => 'Access denied by security rules'], 403);
-        }
-
-        $tableName = $model->table_name;
-
-        if (!Schema::hasTable($tableName)) {
-            return response()->json(['message' => 'Table does not exist'], 404);
-        }
-
-        return $this->cached($tableName, $request, function () use ($request, $model, $tableName) {
-            return $this->executeIndexQuery($request, $model, $tableName);
-        });
     }
 
     /**
@@ -489,10 +523,10 @@ class CoreDataController extends Controller
         if ($request->has('search') && $request->search) {
             $searchTerm = $request->search;
             $searchableFields = $model->fields->where('is_searchable', true)->pluck('name')->toArray();
-            if (!empty($searchableFields)) {
+            if (! empty($searchableFields)) {
                 $baseQuery->where(function ($q) use ($searchableFields, $searchTerm) {
                     foreach ($searchableFields as $f) {
-                        $q->orWhere($f, 'LIKE', $searchTerm . '%');
+                        $q->orWhere($f, 'LIKE', $searchTerm.'%');
                     }
                 });
             }
@@ -508,14 +542,14 @@ class CoreDataController extends Controller
                 $eagerLoad[] = $resolved['includeMap'][$inc];
             }
         }
-        if (!empty($eagerLoad)) {
+        if (! empty($eagerLoad)) {
             $baseQuery->with($eagerLoad);
         }
 
         // Build QueryBuilder on top of the prepared base query
         $perPage = min($request->get('per_page', 15), 100);
 
-        // NOTE: We do NOT use ->with('media') here because polymorphic loading 
+        // NOTE: We do NOT use ->with('media') here because polymorphic loading
         // on DynamicRecord with varying table names can be unreliable in eager loading keys.
         // We perform a manual eager load below.
 
@@ -530,8 +564,8 @@ class CoreDataController extends Controller
         $ids = $data->getCollection()->pluck('id')->toArray();
         $mediaClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
         $allMedia = collect();
-        
-        if (!empty($ids) && class_exists($mediaClass)) {
+
+        if (! empty($ids) && class_exists($mediaClass)) {
             $allMedia = $mediaClass::where('model_type', $tableName)
                 ->whereIn('model_id', $ids)
                 ->get()
@@ -541,61 +575,59 @@ class CoreDataController extends Controller
         // Post-process: hide fields
         $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
         // Use map to preserve all fields, even if types are duplicate
-        $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn($f) => ['name' => $f->name, 'type' => $f->type]);
+        $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn ($f) => ['name' => $f->name, 'type' => $f->type]);
 
         $results = $data->getCollection()->map(function ($item) use ($hiddenFields, $fileFields, $allMedia) {
             if (method_exists($item, 'makeHidden')) {
                 $item->makeHidden($hiddenFields);
             }
-            
+
             $attributes = $item->toArray();
-            
+
             // Get media for this items
             $mediaItems = $allMedia->get($item->id, collect())->sortByDesc('created_at')->values();
 
             // Inject media URLs into image/file fields
             if ($fileFields->isNotEmpty() && $mediaItems->isNotEmpty()) {
-                
+
                 // Map over the fields logic
                 foreach ($fileFields as $fieldDef) {
                     $fieldName = Str::snake($fieldDef['name']);
                     $type = $fieldDef['type'];
-                    
+
                     // Simple heuristic: If field is null, grab the latest media item
                     if (array_key_exists($fieldName, $attributes) && empty($attributes[$fieldName])) {
-                        
+
                         $targetCollection = $type === 'image' ? 'images' : 'files';
-                        
+
                         // Try to find in target collection first
                         $media = $mediaItems->firstWhere('collection_name', $targetCollection);
-                        
+
                         // Fallback to 'files' collection if looking for image
-                        if (!$media && $type === 'image') {
+                        if (! $media && $type === 'image') {
                             $media = $mediaItems->firstWhere('collection_name', 'files');
                         }
-                        
-                         // Fallback to 'images' collection if looking for file
-                         if (!$media && $type === 'file') {
+
+                        // Fallback to 'images' collection if looking for file
+                        if (! $media && $type === 'file') {
                             $media = $mediaItems->firstWhere('collection_name', 'images');
                         }
-                        
+
                         if ($media) {
                             $attributes[$fieldName] = $media->getUrl();
                         }
                     }
                 }
-                
+
                 // Also append full media object for completeness
-                $attributes['media'] = $mediaItems->map(fn($m) => [
+                $attributes['media'] = $mediaItems->map(fn ($m) => [
                     'id' => $m->id,
                     'url' => $m->getUrl(),
                     'name' => $m->file_name,
                     'mime_type' => $m->mime_type,
-                    'collection' => $m->collection_name
+                    'collection' => $m->collection_name,
                 ]);
             }
-
-
 
             return $attributes;
         });
@@ -616,97 +648,108 @@ class CoreDataController extends Controller
      */
     public function show(Request $request, string $tableName, int $id): JsonResponse
     {
-        $model = $this->getModel($tableName);
+        try {
+            $model = $this->getModel($tableName);
 
-        if (!$model) {
-            return response()->json(['message' => 'Model not found'], 404);
-        }
-
-        $tableName = $model->table_name;
-
-        if (!Schema::hasTable($tableName)) {
-            return response()->json(['message' => 'Table does not exist'], 404);
-        }
-
-        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
-
-        if ($model->has_soft_deletes) {
-            $query->whereNull('deleted_at');
-        }
-
-        // Resolve includes using shared helper
-        $resolved = $this->resolveIncludes($model, $tableName);
-        $requestedIncludes = $request->has('include')
-            ? array_map('trim', explode(',', $request->get('include')))
-            : [];
-        foreach ($requestedIncludes as $inc) {
-            if (isset($resolved['includeMap'][$inc])) {
-                $query->with($resolved['includeMap'][$inc]);
+            if (! $model) {
+                return response()->json(['message' => 'Model not found'], 404);
             }
-        }
 
-        $record = $query->find($id);
+            $tableName = $model->table_name;
 
-        if (!$record) {
-            return response()->json(['message' => 'Record not found'], 404);
-        }
+            if (! Schema::hasTable($tableName)) {
+                return response()->json(['message' => 'Table does not exist'], 404);
+            }
 
-        if (!$this->validateRule($model->view_rule, $record)) {
-            return response()->json(['message' => 'Access denied by security rules'], 403);
-        }
-        
-        // Eager load media explicitly for this record
-        // Using manual load to bypass potential polymorphic issues
-        $mediaClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
-        $mediaCollection = collect();
-        if (class_exists($mediaClass)) {
-            $mediaCollection = $mediaClass::where('model_type', $tableName)
-                ->where('model_id', $id)
-                ->get();
-        }
+            $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
 
-        $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
-        $record->makeHidden($hiddenFields);
+            if ($model->has_soft_deletes) {
+                $query->whereNull('deleted_at');
+            }
 
-        $attributes = $record->toArray();
-        $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn($f) => ['name' => $f->name, 'type' => $f->type]);
-        $mediaItems = $mediaCollection->sortByDesc('created_at')->values();
-
-        // Inject media URLs into image/file fields
-        if ($fileFields->isNotEmpty() && $mediaItems->isNotEmpty()) {
-            foreach ($fileFields as $fieldDef) {
-                $fieldName = Str::snake($fieldDef['name']);
-                $type = $fieldDef['type'];
-                
-                if (array_key_exists($fieldName, $attributes) && empty($attributes[$fieldName])) {
-                    $targetCollection = $type === 'image' ? 'images' : 'files';
-                    $media = $mediaItems->firstWhere('collection_name', $targetCollection);
-
-                    if (!$media && $type === 'image') {
-                        $media = $mediaItems->firstWhere('collection_name', 'files');
-                    }
-                    if (!$media && $type === 'file') {
-                        $media = $mediaItems->firstWhere('collection_name', 'images');
-                    }
-                    
-                    if ($media) {
-                        $attributes[$fieldName] = $media->getUrl();
-                    }
+            // Resolve includes using shared helper
+            $resolved = $this->resolveIncludes($model, $tableName);
+            $requestedIncludes = $request->has('include')
+                ? array_map('trim', explode(',', $request->get('include')))
+                : [];
+            foreach ($requestedIncludes as $inc) {
+                if (isset($resolved['includeMap'][$inc])) {
+                    $query->with($resolved['includeMap'][$inc]);
                 }
             }
-            
-            $attributes['media'] = $mediaItems->map(fn($m) => [
-                'id' => $m->id,
-                'url' => $m->getUrl(),
-                'name' => $m->file_name,
-                'mime_type' => $m->mime_type,
-                'collection' => $m->collection_name
+
+            $record = $query->find($id);
+
+            if (! $record) {
+                return response()->json(['message' => 'Record not found'], 404);
+            }
+
+            if (! $this->validateRule($model->view_rule, $record)) {
+                return response()->json(['message' => 'Access denied by security rules'], 403);
+            }
+
+            // Eager load media explicitly for this record
+            // Using manual load to bypass potential polymorphic issues
+            $mediaClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
+            $mediaCollection = collect();
+            if (class_exists($mediaClass)) {
+                $mediaCollection = $mediaClass::where('model_type', $tableName)
+                    ->where('model_id', $id)
+                    ->get();
+            }
+
+            $hiddenFields = $model->fields->where('is_hidden', true)->pluck('name')->toArray();
+            $record->makeHidden($hiddenFields);
+
+            $attributes = $record->toArray();
+            $fileFields = $model->fields->whereIn('type', ['image', 'file'])->map(fn ($f) => ['name' => $f->name, 'type' => $f->type]);
+            $mediaItems = $mediaCollection->sortByDesc('created_at')->values();
+
+            // Inject media URLs into image/file fields
+            if ($fileFields->isNotEmpty() && $mediaItems->isNotEmpty()) {
+                foreach ($fileFields as $fieldDef) {
+                    $fieldName = Str::snake($fieldDef['name']);
+                    $type = $fieldDef['type'];
+
+                    if (array_key_exists($fieldName, $attributes) && empty($attributes[$fieldName])) {
+                        $targetCollection = $type === 'image' ? 'images' : 'files';
+                        $media = $mediaItems->firstWhere('collection_name', $targetCollection);
+
+                        if (! $media && $type === 'image') {
+                            $media = $mediaItems->firstWhere('collection_name', 'files');
+                        }
+                        if (! $media && $type === 'file') {
+                            $media = $mediaItems->firstWhere('collection_name', 'images');
+                        }
+
+                        if ($media) {
+                            $attributes[$fieldName] = $media->getUrl();
+                        }
+                    }
+                }
+
+                $attributes['media'] = $mediaItems->map(fn ($m) => [
+                    'id' => $m->id,
+                    'url' => $m->getUrl(),
+                    'name' => $m->file_name,
+                    'mime_type' => $m->mime_type,
+                    'collection' => $m->collection_name,
+                ]);
+            }
+
+            return response()->json(['data' => $attributes]);
+        } catch (\Exception $e) {
+            Log::error('API Error in CoreDataController::show: '.$e->getMessage(), [
+                'exception' => $e,
+                'request' => $request->all(),
             ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An internal server error occurred.',
+                'error_code' => 'INTERNAL_ERROR',
+            ], 500);
         }
-
-
-
-        return response()->json(['data' => $attributes]);
     }
 
     /**
@@ -719,34 +762,37 @@ class CoreDataController extends Controller
 
         foreach ($model->fields as $field) {
             $snakeName = Str::snake($field->name);
-            
-            if ($snakeName === $field->name) continue;
+
+            if ($snakeName === $field->name) {
+                continue;
+            }
 
             // Handle File Fields strictly
             if (in_array($field->type, ['file', 'image'])) {
-                if ($request->hasFile($snakeName) && !$request->hasFile($field->name)) {
-                     $file = $request->file($snakeName);
-                     $fileUpdates[$field->name] = $file;
-                     // ALSO merge into input to ensure it bypasses any convertedFiles cache
-                     $inputUpdates[$field->name] = $file;
+                if ($request->hasFile($snakeName) && ! $request->hasFile($field->name)) {
+                    $file = $request->file($snakeName);
+                    $fileUpdates[$field->name] = $file;
+                    // ALSO merge into input to ensure it bypasses any convertedFiles cache
+                    $inputUpdates[$field->name] = $file;
                 }
-                continue; 
+
+                continue;
             }
 
             // Handle Normal Data Fields
-            if ($request->has($snakeName) && !$request->has($field->name)) {
+            if ($request->has($snakeName) && ! $request->has($field->name)) {
                 $inputUpdates[$field->name] = $request->input($snakeName);
             }
         }
 
-        if (!empty($inputUpdates)) {
+        if (! empty($inputUpdates)) {
             $request->merge($inputUpdates);
         }
-        
-        if (!empty($fileUpdates)) {
-             foreach ($fileUpdates as $key => $file) {
-                 $request->files->set($key, $file);
-             }
+
+        if (! empty($fileUpdates)) {
+            foreach ($fileUpdates as $key => $file) {
+                $request->files->set($key, $file);
+            }
         }
     }
 
@@ -760,25 +806,25 @@ class CoreDataController extends Controller
     {
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if (!$this->validateRule($model->create_rule)) {
+        if (! $this->validateRule($model->create_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
-        
+
         // Normalize Request Inputs (snake_case -> Real Name)
         $this->normalizeInput($request, $model);
-        
+
         $tableName = $model->table_name;
 
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
         $rules = $this->buildValidationRules($model);
-        
+
         Log::info('DEBUG STORE', [
             'hasFile_Image' => $request->hasFile('Image'),
             'file_Image' => $request->file('Image'), // Might not serialize well
@@ -802,13 +848,13 @@ class CoreDataController extends Controller
 
             $record = $this->executeInTransaction(function () use ($request, $model, $tableName, $allFileFields) {
                 $data = [];
-                
+
                 foreach ($model->fields as $field) {
                     // Skip file/image fields - handle them separately after save
                     if (in_array($field->type, ['file', 'image'])) {
                         continue;
                     }
-                    
+
                     if ($request->has($field->name)) {
                         $data[$field->name] = $this->castValue($request->input($field->name), $field);
                     } elseif ($field->default_value !== null) {
@@ -821,18 +867,18 @@ class CoreDataController extends Controller
                     $data['updated_at'] = now();
                 }
 
-                $record = new DynamicRecord();
+                $record = new DynamicRecord;
                 $record->setDynamicTable($tableName);
                 $record->timestamps = false;
                 $record->fill($data);
                 $record->save();
-                
+
                 // 📸 Handle File Uploads using Spatie Media Library
                 foreach ($allFileFields as $field) {
                     $file = $request->file($field->name);
-                    
+
                     // Fallback to input bag if file bag is empty (due to normalization cache issues)
-                    if (!$file) {
+                    if (! $file) {
                         $inputVal = $request->input($field->name);
                         if ($inputVal instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
                             $file = $inputVal;
@@ -841,10 +887,10 @@ class CoreDataController extends Controller
 
                     if ($file) {
                         $record->addMedia($file)
-                               ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
+                            ->toMediaCollection($field->type === 'image' ? 'images' : 'files');
                     }
                 }
-                
+
                 return $record;
             });
 
@@ -860,32 +906,47 @@ class CoreDataController extends Controller
             if (method_exists($record, 'getMedia')) {
                 // Reload media to get the newly uploaded one
                 $record->load('media');
-                
-                $responseData['media'] = $record->media->map(function($m) {
-                    return [
-                        'id' => $m->id,
-                        'url' => $m->getUrl(),
-                        'name' => $m->file_name,
-                        'mime_type' => $m->mime_type,
-                        'collection' => $m->collection_name
-                    ];
-                });
-                
+
+                $responseData['media'] = [
+                    'files' => $record->media->where('collection_name', 'files')->values()->map(function ($m) {
+                        return [
+                            'id' => $m->id,
+                            'url' => $m->getUrl(),
+                            'name' => $m->name,
+                            'file_name' => $m->file_name,
+                            'mime_type' => $m->mime_type,
+                            'collection' => $m->collection_name,
+                        ];
+                    }),
+                    'images' => $record->media->where('collection_name', 'images')->values()->map(function ($m) {
+                        return [
+                            'id' => $m->id,
+                            'url' => $m->getUrl(),
+                            'name' => $m->name,
+                            'file_name' => $m->file_name,
+                            'mime_type' => $m->mime_type,
+                            'collection' => $m->collection_name,
+                        ];
+                    }),
+                ];
+
                 // Also inject into fields (heuristic)
                 foreach ($allFileFields as $field) {
-                     $fieldName = Str::snake($field->name);
-                     if (empty($responseData[$fieldName])) {
-                         // Very basic mapping for fresh upload
-                         // We look for the media item with the same file name or just use the latest?
-                         // Using latest is safest simple heuristic for single file upload per request
-                         $m = $record->media->sortByDesc('created_at')->first(); 
-                         // Check strictly if mapped? No, Spatie doesn't map to column easily without custom properties.
-                         // But we just uploaded it.
-                         if ($m) $responseData[$fieldName] = $m->getUrl();
-                     }
+                    $fieldName = Str::snake($field->name);
+                    if (empty($responseData[$fieldName])) {
+                        // Very basic mapping for fresh upload
+                        // We look for the media item with the same file name or just use the latest?
+                        // Using latest is safest simple heuristic for single file upload per request
+                        $m = $record->media->sortByDesc('created_at')->first();
+                        // Check strictly if mapped? No, Spatie doesn't map to column easily without custom properties.
+                        // But we just uploaded it.
+                        if ($m) {
+                            $responseData[$fieldName] = $m->getUrl();
+                        }
+                    }
                 }
             }
-            
+
             // Response is already clean due to DynamicRecord::toArray() override
 
             return response()->json(['data' => $responseData], 201);
@@ -899,7 +960,7 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Database Constraint Violation',
-                'message' => config('app.debug') ? $e->getMessage() : 'Data validation failed at database level'
+                'message' => 'Data validation failed at database level',
             ], 400);
         } catch (\Exception $e) {
             Log::error('Record creation failed', [
@@ -910,7 +971,8 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Server Error',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'message' => 'An internal server error occurred.',
+                'error_code' => 'INTERNAL_ERROR',
             ], 500);
         }
     }
@@ -926,26 +988,26 @@ class CoreDataController extends Controller
         // 1. Resolve Model
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if (!$this->validateRule($model->create_rule)) {
+        if (! $this->validateRule($model->create_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
         $tableName = $model->table_name;
 
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
         // 2. Validate Structure
         $records = $request->input('data');
-        if (!is_array($records) || empty($records)) {
+        if (! is_array($records) || empty($records)) {
             return response()->json([
                 'message' => 'Validation failed',
-                'errors' => ['data' => ['Input must be an array of objects under "data" key']]
+                'errors' => ['data' => ['Input must be an array of objects under "data" key']],
             ], 400);
         }
 
@@ -953,7 +1015,7 @@ class CoreDataController extends Controller
         if (count($records) > 1000) {
             return response()->json([
                 'message' => 'Batch size limit exceeded',
-                'errors' => ['data' => ['Maximum 1000 records allowed per batch']]
+                'errors' => ['data' => ['Maximum 1000 records allowed per batch']],
             ], 413);
         }
 
@@ -968,10 +1030,10 @@ class CoreDataController extends Controller
         $modelFields = $model->fields->pluck('name')->toArray();
 
         foreach ($records as $index => $record) {
-            if (!is_array($record)) {
+            if (! is_array($record)) {
                 return response()->json([
                     'message' => 'Validation failed',
-                    'errors' => ["data.{$index}" => ['Each record must be an object/array']]
+                    'errors' => ["data.{$index}" => ['Each record must be an object/array']],
                 ], 422);
             }
 
@@ -1007,11 +1069,11 @@ class CoreDataController extends Controller
             ]);
 
             return response()->json([
-                'message' => count($insertData) . ' records inserted successfully',
+                'message' => count($insertData).' records inserted successfully',
                 'data' => [
                     'count' => count($insertData),
                     'table' => $tableName,
-                ]
+                ],
             ], 201);
         } catch (\Exception $e) {
             Log::error('Bulk insert failed', [
@@ -1022,7 +1084,8 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'message' => 'Bulk insert failed',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'error' => 'An internal server error occurred.',
+                'error_code' => 'BULK_INSERT_FAILED',
             ], 500);
         }
     }
@@ -1037,23 +1100,27 @@ class CoreDataController extends Controller
     {
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
-        
+
         $tableName = $model->table_name;
 
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        $record = DB::table($tableName)->where('id', $id)->first();
+        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
+        if ($model->has_soft_deletes) {
+            $query->whereNull('deleted_at');
+        }
+        $record = $query->find($id);
 
-        if (!$record) {
+        if (! $record) {
             return response()->json(['message' => 'Record not found'], 404);
         }
 
-        if (!$this->validateRule($model->update_rule, $record)) {
+        if (! $this->validateRule($model->update_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
@@ -1074,16 +1141,17 @@ class CoreDataController extends Controller
             $updatedRecord = $this->executeInTransaction(function () use ($request, $model, $tableName, $id) {
                 $data = [];
                 $fileFields = [];
-                
+
                 foreach ($model->fields as $field) {
                     // Skip file/image fields - handle them separately
                     if (in_array($field->type, ['file', 'image'])) {
                         if ($request->hasFile($field->name)) {
                             $fileFields[] = $field;
                         }
+
                         continue;
                     }
-                    
+
                     if ($request->has($field->name)) {
                         $data[$field->name] = $this->castValue($request->input($field->name), $field);
                     }
@@ -1093,14 +1161,14 @@ class CoreDataController extends Controller
                     $data['updated_at'] = now();
                 }
 
-                $recordInstance = new DynamicRecord();
+                $recordInstance = new DynamicRecord;
                 $recordInstance->setDynamicTable($tableName);
-                
+
                 $pdoRecord = $recordInstance->findOrFail($id);
                 $pdoRecord->setDynamicTable($tableName);
                 $pdoRecord->timestamps = false;
-                
-                if (!empty($data)) {
+
+                if (! empty($data)) {
                     $pdoRecord->update($data);
                 }
 
@@ -1108,9 +1176,9 @@ class CoreDataController extends Controller
                 $fileFields = $model->fields->whereIn('type', ['image', 'file']);
                 foreach ($fileFields as $field) {
                     $file = $request->file($field->name);
-                    
+
                     // Fallback to input bag if file bag is empty
-                    if (!$file) {
+                    if (! $file) {
                         $inputVal = $request->input($field->name);
                         if ($inputVal instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
                             $file = $inputVal;
@@ -1119,12 +1187,12 @@ class CoreDataController extends Controller
 
                     if ($file) {
                         // Clear existing media if replacing
-                        if ($request->input('replace_' . $field->name, false)) {
+                        if ($request->input('replace_'.$field->name, false)) {
                             $pdoRecord->clearMediaCollection($field->type === 'image' ? 'images' : 'files');
                         }
-                        
+
                         $pdoRecord->addMedia($file)
-                                  ->toMediaCollection($field->type === 'image' ? 'images' : 'files', 'digibase_storage');
+                            ->toMediaCollection($field->type === 'image' ? 'images' : 'files');
                     }
                 }
 
@@ -1142,7 +1210,7 @@ class CoreDataController extends Controller
             $responseData = $updatedRecord->toArray();
             if (method_exists($updatedRecord, 'getMedia')) {
                 $responseData['media'] = [
-                    'files' => $updatedRecord->getMedia('files')->map(fn($media) => [
+                    'files' => $updatedRecord->getMedia('files')->map(fn ($media) => [
                         'id' => $media->id,
                         'name' => $media->name,
                         'file_name' => $media->file_name,
@@ -1150,7 +1218,7 @@ class CoreDataController extends Controller
                         'size' => $media->size,
                         'url' => $media->getUrl(),
                     ]),
-                    'images' => $updatedRecord->getMedia('images')->map(fn($media) => [
+                    'images' => $updatedRecord->getMedia('images')->map(fn ($media) => [
                         'id' => $media->id,
                         'name' => $media->name,
                         'file_name' => $media->file_name,
@@ -1175,7 +1243,7 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Database Constraint Violation',
-                'message' => config('app.debug') ? $e->getMessage() : 'Data validation failed at database level'
+                'message' => 'Data validation failed at database level',
             ], 400);
         } catch (\Exception $e) {
             Log::error('Record update failed', [
@@ -1187,7 +1255,8 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Server Error',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'message' => 'An internal server error occurred.',
+                'error_code' => 'INTERNAL_ERROR',
             ], 500);
         }
     }
@@ -1200,23 +1269,27 @@ class CoreDataController extends Controller
     {
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
-        
+
         $tableName = $model->table_name;
 
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
-        $record = DB::table($tableName)->where('id', $id)->first();
+        $query = (new DynamicRecord)->setDynamicTable($tableName)->newQuery();
+        if ($model->has_soft_deletes) {
+            $query->whereNull('deleted_at');
+        }
+        $record = $query->find($id);
 
-        if (!$record) {
+        if (! $record) {
             return response()->json(['message' => 'Record not found'], 404);
         }
 
-        if (!$this->validateRule($model->delete_rule, $record)) {
+        if (! $this->validateRule($model->delete_rule, $record)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 
@@ -1224,7 +1297,7 @@ class CoreDataController extends Controller
 
         try {
             $this->executeInTransaction(function () use ($request, $model, $tableName, $id) {
-                $recordInstance = new DynamicRecord();
+                $recordInstance = new DynamicRecord;
                 $recordInstance->setDynamicTable($tableName);
 
                 $pdoRecord = $recordInstance->findOrFail($id);
@@ -1233,7 +1306,7 @@ class CoreDataController extends Controller
 
                 $forceDelete = $request->has('force') && $request->boolean('force');
 
-                if ($model->has_soft_deletes && !$forceDelete) {
+                if ($model->has_soft_deletes && ! $forceDelete) {
                     $softDeleteData = ['deleted_at' => now()];
                     if ($model->has_timestamps) {
                         $softDeleteData['updated_at'] = now();
@@ -1263,7 +1336,7 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Database Constraint Violation',
-                'message' => config('app.debug') ? $e->getMessage() : 'Cannot delete: record is referenced by other data'
+                'message' => 'Cannot delete: record is referenced by other data',
             ], 400);
         } catch (\Exception $e) {
             Log::error('Record deletion failed', [
@@ -1274,7 +1347,8 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'error' => 'Server Error',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'message' => 'An internal server error occurred.',
+                'error_code' => 'INTERNAL_ERROR',
             ], 500);
         }
     }
@@ -1286,17 +1360,17 @@ class CoreDataController extends Controller
     {
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if (!$model->has_soft_deletes) {
+        if (! $model->has_soft_deletes) {
             return response()->json(['message' => 'This model does not support soft deletes'], 400);
         }
 
         $tableName = $model->table_name;
 
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table does not exist'], 404);
         }
 
@@ -1305,7 +1379,7 @@ class CoreDataController extends Controller
             ->whereNotNull('deleted_at')
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             return response()->json(['message' => 'Record not found or not deleted'], 404);
         }
 
@@ -1314,12 +1388,12 @@ class CoreDataController extends Controller
                 ->where('id', $id)
                 ->update([
                     'deleted_at' => null,
-                    'updated_at' => $model->has_timestamps ? now() : DB::raw('updated_at')
+                    'updated_at' => $model->has_timestamps ? now() : DB::raw('updated_at'),
                 ]);
 
             return response()->json([
                 'message' => 'Record restored successfully',
-                'data' => ['id' => $id]
+                'data' => ['id' => $id],
             ]);
         } catch (\Exception $e) {
             Log::error('Record restoration failed', [
@@ -1330,7 +1404,8 @@ class CoreDataController extends Controller
 
             return response()->json([
                 'message' => 'Failed to restore record',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'error' => 'An internal server error occurred.',
+                'error_code' => 'RESTORE_FAILED',
             ], 500);
         }
     }
@@ -1342,11 +1417,11 @@ class CoreDataController extends Controller
     {
         $model = $this->getModel($tableName);
 
-        if (!$model) {
+        if (! $model) {
             return response()->json(['message' => 'Model not found'], 404);
         }
 
-        if (!$this->validateRule($model->list_rule)) {
+        if (! $this->validateRule($model->list_rule)) {
             return response()->json(['message' => 'Access denied by security rules'], 403);
         }
 

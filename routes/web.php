@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Controllers\Api\SdkController;
+use App\Http\Controllers\AdminerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
+
+// 🗄️ Database Manager (Adminer)
+Route::get('/admin/database-manager', [AdminerController::class, 'index'])->name('admin.database');
+
 
 // JavaScript SDK
 Route::get('/sdk/digibase.js', [SdkController::class, 'generate'])->name('sdk.js');

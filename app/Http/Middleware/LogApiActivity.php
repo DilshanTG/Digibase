@@ -31,6 +31,9 @@ class LogApiActivity
     public function terminate(Request $request, Response $response): void
     {
         try {
+            if (! isset($this->startTime)) {
+                return;
+            }
             $durationMs = (int) round((microtime(true) - $this->startTime) * 1000);
 
             // Extract table name from the route parameter

@@ -32,7 +32,7 @@ class ApiRateLimiter
 
         $apiKey = $request->attributes->get('api_key');
 
-        if (!$apiKey) {
+        if (! $apiKey) {
             return $this->applyDefaultRateLimit($request, $next);
         }
 
@@ -40,8 +40,10 @@ class ApiRateLimiter
         $maxAttempts = $apiKey->rate_limit ?? 60;
         $decayMinutes = 1;
 
-        // Create unique key for this API key
-        $key = 'api:' . $apiKey->id;
+        // Create unique key for this API key + IP combination
+        // This prevents one client IP from exhausting the limit for the entire key,
+        // and also prevents a distributed attack from bypassing IP-based limits if they were using that.
+        $key = 'api:'.$apiKey->id.':'.$request->ip();
 
         // Check rate limit
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
@@ -125,7 +127,7 @@ class ApiRateLimiter
      */
     protected function applyDefaultRateLimit(Request $request, Closure $next): Response
     {
-        $key = 'api:' . $request->ip();
+        $key = 'api:'.$request->ip();
         $maxAttempts = 60;
         $decayMinutes = 1;
 

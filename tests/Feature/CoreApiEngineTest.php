@@ -3,19 +3,19 @@
 namespace Tests\Feature;
 
 use App\Models\ApiKey;
-use App\Models\DynamicModel;
 use App\Models\DynamicField;
+use App\Models\DynamicModel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
  * Core API Engine Test Suite
- * 
+ *
  * Tests the unified CoreDataController with:
  * - 🛡️ Iron Dome (API key validation)
  * - 🩺 Schema Doctor (Dynamic validation)
@@ -30,7 +30,9 @@ class CoreApiEngineTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected ApiKey $apiKey;
+
     protected DynamicModel $model;
 
     protected function setUp(): void
@@ -46,7 +48,7 @@ class CoreApiEngineTest extends TestCase
             'name' => 'Test Key',
             'key' => 'sk_test_key_12345678901234567890',
             'type' => 'secret',
-            'scopes' => ['read', 'write', 'delete'],
+            'scopes' => ['read', 'create', 'update', 'delete', 'write'],
             'allowed_tables' => null, // Access to all tables
             'rate_limit' => 100,
             'is_active' => true,
@@ -125,6 +127,7 @@ class CoreApiEngineTest extends TestCase
             $table->float('price');
             $table->integer('quantity')->default(0);
             $table->boolean('is_active')->default(true);
+            $table->softDeletes();
             $table->timestamps();
         });
     }
@@ -171,7 +174,7 @@ class CoreApiEngineTest extends TestCase
         ]);
 
         $response = $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -193,7 +196,7 @@ class CoreApiEngineTest extends TestCase
             'quantity' => '15', // String should be cast to integer
             'is_active' => '1', // String should be cast to boolean
         ], [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(201)
@@ -213,7 +216,7 @@ class CoreApiEngineTest extends TestCase
             'quantity' => 10,
             // Missing required 'name' and 'price'
         ], [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(422)
@@ -240,7 +243,7 @@ class CoreApiEngineTest extends TestCase
             'name' => 'Updated Product',
             'price' => 15.99,
         ], [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -266,7 +269,7 @@ class CoreApiEngineTest extends TestCase
         ]);
 
         $response = $this->deleteJson("/api/v1/data/test_products/{$id}", [], [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -279,7 +282,7 @@ class CoreApiEngineTest extends TestCase
     public function it_returns_schema_information()
     {
         $response = $this->getJson('/api/v1/data/test_products/schema', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -300,15 +303,15 @@ class CoreApiEngineTest extends TestCase
 
         // Make 3 requests (should hit limit on 3rd)
         $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ])->assertStatus(200);
 
         $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ])->assertStatus(200);
 
         $response = $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(429)
@@ -324,7 +327,7 @@ class CoreApiEngineTest extends TestCase
     public function it_includes_rate_limit_headers()
     {
         $response = $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -347,7 +350,7 @@ class CoreApiEngineTest extends TestCase
 
         // Test legacy endpoint (without v1 prefix)
         $response = $this->getJson('/api/data/test_products', [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(200)
@@ -374,7 +377,7 @@ class CoreApiEngineTest extends TestCase
 
         // GET should work
         $response = $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $readOnlyKey->key,
+            'Authorization' => 'Bearer '.$readOnlyKey->key,
         ]);
         $response->assertStatus(200);
 
@@ -383,11 +386,12 @@ class CoreApiEngineTest extends TestCase
             'name' => 'Test',
             'price' => 10.99,
         ], [
-            'Authorization' => 'Bearer ' . $readOnlyKey->key,
+            'Authorization' => 'Bearer '.$readOnlyKey->key,
         ]);
+
         $response->assertStatus(403)
             ->assertJson([
-                'error_code' => 'METHOD_NOT_ALLOWED',
+                'error_code' => 'INSUFFICIENT_PERMISSION',
             ]);
     }
 
@@ -406,7 +410,7 @@ class CoreApiEngineTest extends TestCase
         ]);
 
         $response = $this->getJson('/api/v1/data/test_products', [
-            'Authorization' => 'Bearer ' . $limitedKey->key,
+            'Authorization' => 'Bearer '.$limitedKey->key,
         ]);
 
         $response->assertStatus(403)
@@ -418,7 +422,7 @@ class CoreApiEngineTest extends TestCase
     /** @test */
     public function it_handles_file_uploads()
     {
-        Storage::fake('digibase_storage');
+        Storage::fake('public');
 
         // Add file field to model
         DynamicField::create([
@@ -437,7 +441,7 @@ class CoreApiEngineTest extends TestCase
             'price' => 10.99,
             'avatar' => $file,
         ], [
-            'Authorization' => 'Bearer ' . $this->apiKey->key,
+            'Authorization' => 'Bearer '.$this->apiKey->key,
         ]);
 
         $response->assertStatus(201)
@@ -445,15 +449,58 @@ class CoreApiEngineTest extends TestCase
                 'data' => [
                     'media' => [
                         'images' => [
-                            '*' => ['url', 'file_name', 'mime_type']
-                        ]
-                    ]
-                ]
+                            '*' => ['url', 'file_name', 'mime_type'],
+                        ],
+                    ],
+                ],
             ]);
 
         // Verify media exists for the record
         $recordId = $response->json('data.id');
         $record = (new \App\Models\DynamicRecord)->setDynamicTable('test_products')->findOrFail($recordId);
         $this->assertCount(1, $record->getMedia('images'));
+    }
+
+    /** @test */
+    public function it_respects_soft_delete_boundaries()
+    {
+        // 1. Enable Soft Deletes on the Model
+        $this->model->update(['has_soft_deletes' => true]);
+
+        // 2. Create Record
+        $id = DB::table('test_products')->insertGetId([
+            'name' => 'Ghost Item',
+            'price' => 10.00,
+            'quantity' => 1,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // 3. Delete it (Soft Delete) via API
+        $this->deleteJson("/api/v1/data/test_products/{$id}", [], [
+            'Authorization' => 'Bearer '.$this->apiKey->key,
+        ])->assertStatus(200);
+
+        // Verify it is soft deleted in DB
+        $record = DB::table('test_products')->where('id', $id)->first();
+        $this->assertNotNull($record->deleted_at);
+
+        // 4. Try to Show -> 404
+        $this->getJson("/api/v1/data/test_products/{$id}", [
+            'Authorization' => 'Bearer '.$this->apiKey->key,
+        ])->assertStatus(404);
+
+        // 5. Try to Update -> 404 (Was 200 before fix)
+        $this->putJson("/api/v1/data/test_products/{$id}", [
+            'name' => 'Resurrected',
+        ], [
+            'Authorization' => 'Bearer '.$this->apiKey->key,
+        ])->assertStatus(404);
+
+        // 6. Try to Delete again -> 404
+        $this->deleteJson("/api/v1/data/test_products/{$id}", [], [
+            'Authorization' => 'Bearer '.$this->apiKey->key,
+        ])->assertStatus(404);
     }
 }

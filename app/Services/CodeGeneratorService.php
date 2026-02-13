@@ -10,7 +10,7 @@ class CodeGeneratorService
     public function generate($modelId, $framework, $operation, $style = 'tailwind', $typescript = true)
     {
         $model = DynamicModel::with('fields')->findOrFail($modelId);
-        
+
         switch ($framework) {
             case 'react':
                 return $this->generateReact($model, $operation, $style, $typescript);
@@ -37,7 +37,7 @@ class CodeGeneratorService
             $files[] = [
                 'name' => "{$modelName}List.{$ext}",
                 'code' => $this->getReactListTemplate($model, $style, $typescript),
-                'description' => "Table component to display {$displayName} records."
+                'description' => "Table component to display {$displayName} records.",
             ];
         }
 
@@ -45,7 +45,7 @@ class CodeGeneratorService
             $files[] = [
                 'name' => "{$modelName}Create.{$ext}",
                 'code' => $this->getReactCreateTemplate($model, $style, $typescript),
-                'description' => "Form component to create new {$displayName} records."
+                'description' => "Form component to create new {$displayName} records.",
             ];
         }
 
@@ -53,7 +53,7 @@ class CodeGeneratorService
             $files[] = [
                 'name' => "use{$modelName}.ts",
                 'code' => $this->getReactHookTemplate($model),
-                'description' => "Custom React hook for CRUD operations using Axios."
+                'description' => 'Custom React hook for CRUD operations using Axios.',
             ];
         }
 
@@ -66,11 +66,11 @@ class CodeGeneratorService
         $tableName = $model->table_name;
         $fields = $model->fields;
 
-        $tableHeaders = "";
-        $tableCells = "";
+        $tableHeaders = '';
+        $tableCells = '';
         foreach ($fields->take(5) as $field) {
             $tableHeaders .= "                <th className=\"px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider\">{$field->display_name}</th>\n";
-            $tableCells .= "                <td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">{item.{$field->name}}</td>\n";
+            $tableCells .= "                <td className=\"px-6 py-4 whitespace-nowrap text-sm text-gray-900\">{item['{$field->name}']}</td>\n";
         }
 
         return <<<React
@@ -129,12 +129,12 @@ React;
         $tableName = $model->table_name;
         $fields = $model->fields;
 
-        $initialState = "";
-        $formFields = "";
+        $initialState = '';
+        $formFields = '';
         foreach ($fields as $field) {
             $initialState .= "        {$field->name}: '',\n";
             $type = $field->type === 'email' ? 'email' : ($field->type === 'integer' ? 'number' : 'text');
-            
+
             $formFields .= <<<HTML
             <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -254,7 +254,7 @@ React;
         $tableName = $model->table_name;
         $fields = $model->fields;
 
-        $formFields = "";
+        $formFields = '';
         foreach ($fields as $field) {
             $formFields .= "          <div class=\"mb-4\">\n";
             $formFields .= "            <label class=\"block text-sm font-medium mb-1\">{$field->display_name}</label>\n";
@@ -299,8 +299,8 @@ VUE;
             [
                 'name' => "{$modelName}Manager.vue",
                 'code' => $code,
-                'description' => "Vue 3 Component with Composition API for {$displayName}."
-            ]
+                'description' => "Vue 3 Component with Composition API for {$displayName}.",
+            ],
         ];
     }
 
@@ -309,7 +309,7 @@ VUE;
         $modelName = $model->name;
         $displayName = $model->display_name;
         $tableName = $model->table_name;
-        
+
         $code = <<<NEXT
 'use client'
 
@@ -347,10 +347,10 @@ NEXT;
 
         return [
             [
-                'name' => "page.tsx",
+                'name' => 'page.tsx',
                 'code' => $code,
-                'description' => "Next.js 14 App Router page component for {$displayName}."
-            ]
+                'description' => "Next.js 14 App Router page component for {$displayName}.",
+            ],
         ];
     }
 
@@ -381,8 +381,8 @@ NUXT;
             [
                 'name' => "{$modelName}.vue",
                 'code' => $code,
-                'description' => "Nuxt 3 page component with useFetch for {$displayName}."
-            ]
+                'description' => "Nuxt 3 page component with useFetch for {$displayName}.",
+            ],
         ];
     }
 
@@ -402,11 +402,11 @@ NUXT;
         $interfaceFields = "    id: number;\n";
         foreach ($model->fields as $field) {
             $tsType = $this->mapTypeToTypeScript($field->type);
-            $nullable = !$field->is_required ? '?' : '';
+            $nullable = ! $field->is_required ? '?' : '';
             $interfaceFields .= "    '{$field->name}'{$nullable}: {$tsType};\n";
         }
         $interfaceFields .= "    created_at: string;\n";
-        $interfaceFields .= "    updated_at: string;";
+        $interfaceFields .= '    updated_at: string;';
 
         return <<<TSX
 'use client';
@@ -518,8 +518,8 @@ TSX;
      */
     protected function mapTypeToTypeScript(string $fieldType): string
     {
-        return match($fieldType) {
-            'string', 'text', 'email', 'url', 'date', 'datetime', 'file', 'image' => 'string',
+        return match ($fieldType) {
+            'string', 'text', 'email', 'url', 'date', 'datetime', 'file', 'image', 'bigint' => 'string',
             'integer', 'decimal', 'float', 'number' => 'number',
             'boolean' => 'boolean',
             'json' => 'any',
