@@ -8,6 +8,7 @@ use App\Models\DynamicRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class DatabaseController extends Controller
@@ -44,6 +45,97 @@ class DatabaseController extends Controller
     ];
 
     /**
+     * 🔒 TRANSACTION WRAPPER: Execute with deadlock retry
+     * Use this for all DB operations in high-traffic scenarios
+     *
+     * Usage in any method:
+     * $result = $this->safeTransaction(function () {
+     *     return DB::table('orders')->insert($data);
+     * });
+     */
+    protected function safeTransaction(callable $callback, int $maxAttempts = 3)
+    {
+        $attempt = 0;
+        $lastException = null;
+
+        while ($attempt < $maxAttempts) {
+            try {
+                return DB::transaction($callback, 5); // 5 second statement timeout
+            } catch (\Illuminate\Database\QueryException $e) {
+                $attempt++;
+                $lastException = $e;
+
+                // Check if it's a lock/deadlock error
+                $isLockError = (
+                    strpos($e->getMessage(), 'database is locked') !== false ||
+                    strpos($e->getMessage(), 'deadlock') !== false ||
+                    strpos($e->getMessage(), 'cannot start a transaction') !== false ||
+                    $e->getCode() === 5 || // SQLITE_BUSY
+                    $e->getCode() === 6    // SQLITE_LOCKED
+                );
+
+                if ($isLockError && $attempt < $maxAttempts) {
+                    // Exponential backoff: 50ms, 100ms, 150ms
+                    $delay = 50000 * $attempt;
+                    usleep($delay);
+
+                    Log::warning('Database lock detected, retrying transaction', [
+                        'attempt' => $attempt,
+                        'max_attempts' => $maxAttempts,
+                        'delay_ms' => $delay / 1000,
+                    ]);
+
+                    continue;
+                }
+
+                throw $e;
+            }
+        }
+
+        throw $lastException ?? new \RuntimeException('Transaction failed after '.$maxAttempts.' attempts');
+    }
+
+    /**
+     * 🔒 BULK INSERT WITH RETRY: Safe wrapper for bulk operations
+     * Use this instead of DB::table()->insert() directly
+     */
+    protected function safeBulkInsert(string $table, array $records, int $chunkSize = 100): int
+    {
+        $totalInserted = 0;
+
+        return $this->safeTransaction(function () use ($table, $records, $chunkSize, &$totalInserted) {
+            $chunks = array_chunk($records, $chunkSize);
+
+            foreach ($chunks as $chunk) {
+                DB::table($table)->insert($chunk);
+                $totalInserted += count($chunk);
+            }
+
+            return $totalInserted;
+        });
+    }
+
+    /**
+     * 🔒 SAFE UPDATE: Update with retry logic
+     */
+    protected function safeUpdate(string $table, $id, array $data): bool
+    {
+        return $this->safeTransaction(function () use ($table, $id, $data) {
+            return DB::table($table)->where('id', $id)->update($data);
+        });
+    }
+
+    /**
+     * 🔒 SAFE DELETE: Delete with retry logic
+     */
+    protected function safeDelete(string $table, $id): bool
+    {
+        return $this->safeTransaction(function () use ($table, $id) {
+            return DB::table($table)->where('id', $id)->delete();
+        });
+    }
+
+    /**
      * Check if a table is protected/sensitive.
      */
     protected function isProtectedTable(string $tableName): bool
@@ -61,7 +153,7 @@ class DatabaseController extends Controller
         $tableInfo = collect($tables)
             ->filter(function ($table) {
                 // Filter out protected system tables
-                return !$this->isProtectedTable($table['name']);
+                return ! $this->isProtectedTable($table['name']);
             })
             ->map(function ($table) {
                 $tableName = $table['name'];
@@ -89,7 +181,7 @@ class DatabaseController extends Controller
      */
     public function structure(Request $request, string $tableName): JsonResponse
     {
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
@@ -141,7 +233,7 @@ class DatabaseController extends Controller
      */
     public function data(Request $request, string $tableName): JsonResponse
     {
-        if (!Schema::hasTable($tableName)) {
+        if (! Schema::hasTable($tableName)) {
             return response()->json(['message' => 'Table not found'], 404);
         }
 
@@ -158,7 +250,7 @@ class DatabaseController extends Controller
         // Get columns to validate sort field
         $columns = collect(Schema::getColumns($tableName))->pluck('name')->toArray();
 
-        if (!in_array($sortBy, $columns)) {
+        if (! in_array($sortBy, $columns)) {
             $sortBy = $columns[0] ?? 'id';
         }
 
@@ -233,7 +325,7 @@ class DatabaseController extends Controller
         $normalizedSql = preg_replace('/\s+/', ' ', $sanitizedSql);
 
         // Only allow SELECT queries for safety (must start with SELECT)
-        if (!preg_match('/^\s*SELECT\s/i', $normalizedSql)) {
+        if (! preg_match('/^\s*SELECT\s/i', $normalizedSql)) {
             return response()->json([
                 'message' => 'Only SELECT queries are allowed',
             ], 400);
@@ -247,7 +339,7 @@ class DatabaseController extends Controller
         ];
         foreach ($dangerous as $keyword) {
             // Use word boundary matching to catch keywords
-            if (preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $normalizedSql)) {
+            if (preg_match('/\b'.preg_quote($keyword, '/').'\b/i', $normalizedSql)) {
                 return response()->json([
                     'message' => "Query contains forbidden keyword: {$keyword}",
                 ], 400);
@@ -256,7 +348,7 @@ class DatabaseController extends Controller
 
         // Block queries against protected tables
         foreach ($this->protectedTables as $table) {
-            if (preg_match('/\b' . preg_quote($table, '/') . '\b/i', $normalizedSql)) {
+            if (preg_match('/\b'.preg_quote($table, '/').'\b/i', $normalizedSql)) {
                 return response()->json([
                     'message' => "Access to table '{$table}' is restricted",
                 ], 403);
@@ -276,7 +368,7 @@ class DatabaseController extends Controller
             $executionTime = round((microtime(true) - $startTime) * 1000, 2);
 
             $columns = [];
-            if (!empty($results)) {
+            if (! empty($results)) {
                 $columns = array_keys((array) $results[0]);
             }
 
@@ -288,7 +380,7 @@ class DatabaseController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Query error: ' . $e->getMessage(),
+                'message' => 'Query error: '.$e->getMessage(),
             ], 400);
         }
     }
@@ -313,7 +405,7 @@ class DatabaseController extends Controller
         }
 
         // Sort by row count
-        usort($tableStats, fn($a, $b) => $b['rows'] - $a['rows']);
+        usort($tableStats, fn ($a, $b) => $b['rows'] - $a['rows']);
 
         // Get dynamic models count
         $dynamicModelsCount = DynamicModel::count();
@@ -336,7 +428,7 @@ class DatabaseController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$dynamicModel) {
+        if (! $dynamicModel) {
             return response()->json(['message' => 'Unauthorized or table not found'], 403);
         }
 
@@ -351,7 +443,7 @@ class DatabaseController extends Controller
 
         try {
             // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
-            $record = new DynamicRecord();
+            $record = new DynamicRecord;
             $record->setDynamicTable($tableName);
             $record->timestamps = false;
             $record->fill($data);
@@ -359,7 +451,7 @@ class DatabaseController extends Controller
 
             return response()->json(['data' => $record->fresh()], 201);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Insert error: ' . $e->getMessage()], 400);
+            return response()->json(['message' => 'Insert error: '.$e->getMessage()], 400);
         }
     }
 
@@ -372,7 +464,7 @@ class DatabaseController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$dynamicModel) {
+        if (! $dynamicModel) {
             return response()->json(['message' => 'Unauthorized or table not found'], 403);
         }
 
@@ -386,14 +478,14 @@ class DatabaseController extends Controller
 
         try {
             // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
-            $record = (new DynamicRecord())->setDynamicTable($tableName)->findOrFail($id);
+            $record = (new DynamicRecord)->setDynamicTable($tableName)->findOrFail($id);
             $record->setDynamicTable($tableName);
             $record->timestamps = false;
             $record->update($data);
 
             return response()->json(['data' => $record->fresh()]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Update error: ' . $e->getMessage()], 400);
+            return response()->json(['message' => 'Update error: '.$e->getMessage()], 400);
         }
     }
 
@@ -406,13 +498,13 @@ class DatabaseController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$dynamicModel) {
+        if (! $dynamicModel) {
             return response()->json(['message' => 'Unauthorized or table not found'], 403);
         }
 
         try {
             // Use Eloquent so DynamicRecordObserver fires (cache + real-time)
-            $record = (new DynamicRecord())->setDynamicTable($tableName)->findOrFail($id);
+            $record = (new DynamicRecord)->setDynamicTable($tableName)->findOrFail($id);
             $record->setDynamicTable($tableName);
             $record->timestamps = false;
 
@@ -424,7 +516,7 @@ class DatabaseController extends Controller
 
             return response()->json(['message' => 'Row deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Delete error: ' . $e->getMessage()], 400);
+            return response()->json(['message' => 'Delete error: '.$e->getMessage()], 400);
         }
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Webhook;
 use App\Services\UrlValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -1055,38 +1056,116 @@ class CoreDataController extends Controller
             $insertData[] = $this->sanitizePayload($cleanRecord);
         }
 
-        // 5. Execute Insert (Fastest Method - Single Query)
-        try {
-            $this->executeInTransaction(function () use ($tableName, $insertData) {
-                DB::table($tableName)->insert($insertData);
-            });
+        // 5. Execute Insert with Observer Support
+        // 🔥 FIXED: Use Eloquent with chunking to trigger DynamicRecordObserver
+        $createdIds = [];
+        $chunkSize = 50; // Process in chunks to balance performance and observer triggers
 
-            event(new ModelActivity('bulk_created', $model->name, ['count' => count($insertData)], $request->user()));
+        try {
+            // Use retry mechanism for SQLite locking issues
+            $attempts = 0;
+            $maxAttempts = 3;
+
+            while ($attempts < $maxAttempts) {
+                try {
+                    DB::transaction(function () use ($tableName, $insertData, $chunkSize, &$createdIds) {
+                        $chunks = array_chunk($insertData, $chunkSize);
+
+                        foreach ($chunks as $chunk) {
+                            foreach ($chunk as $recordData) {
+                                // 🔥 FIXED: Use Eloquent to trigger observers
+                                $record = new DynamicRecord;
+                                $record->setDynamicTable($tableName);
+                                $record->timestamps = false; // We handle timestamps manually
+                                $record->fill($recordData);
+                                $record->save();
+
+                                $createdIds[] = $record->id;
+
+                                // Clear instance from memory to prevent OOM
+                                $record = null;
+                            }
+
+                            // 🔥 FIXED: Dispatch events for cache invalidation and webhooks
+                            // Note: Observer fires on each save(), but we batch webhook calls
+                        }
+                    }, 5); // 5 second timeout for deadlock retry
+
+                    break; // Success, exit retry loop
+
+                } catch (\Illuminate\Database\QueryException $e) {
+                    $attempts++;
+
+                    // Check if it's a deadlock/lock error
+                    if (strpos($e->getMessage(), 'database is locked') !== false && $attempts < $maxAttempts) {
+                        Log::warning('Database locked during bulk insert, retrying...', [
+                            'attempt' => $attempts,
+                            'table' => $tableName,
+                        ]);
+                        usleep(100000 * $attempts); // Exponential backoff: 100ms, 200ms, 300ms
+
+                        continue;
+                    }
+
+                    throw $e; // Re-throw if not a lock error or max attempts reached
+                }
+            }
+
+            // Fire bulk events after all records created
+            event(new ModelActivity('bulk_created', $model->name, [
+                'count' => count($createdIds),
+                'ids' => array_slice($createdIds, 0, 10), // Include first 10 IDs for reference
+            ], $request->user()));
 
             $this->triggerWebhooks($model->id, 'bulk_created', [
                 'table' => $tableName,
-                'count' => count($insertData),
+                'count' => count($createdIds),
+                'ids' => $createdIds,
             ]);
 
+            // 🔥 FIXED: Clear cache for this model to ensure fresh data
+            $this->invalidateModelCache($model->id);
+
             return response()->json([
-                'message' => count($insertData).' records inserted successfully',
+                'message' => count($createdIds).' records inserted successfully',
                 'data' => [
-                    'count' => count($insertData),
+                    'count' => count($createdIds),
                     'table' => $tableName,
+                    'ids' => array_slice($createdIds, 0, 20), // Return first 20 IDs
                 ],
             ], 201);
+
         } catch (\Exception $e) {
             Log::error('Bulk insert failed', [
                 'table' => $tableName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+                'attempts' => $attempts,
             ]);
 
             return response()->json([
                 'message' => 'Bulk insert failed',
                 'error' => 'An internal server error occurred.',
                 'error_code' => 'BULK_INSERT_FAILED',
+                'details' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
+        }
+    }
+
+    /**
+     * 🔥 FIXED: Invalidate model cache after bulk operations
+     */
+    protected function invalidateModelCache(int $modelId): void
+    {
+        $cacheKey = "model_data_{$modelId}";
+        Cache::forget($cacheKey);
+
+        // Also clear any wildcard cache keys for this model
+        $keys = Cache::get('cache_keys', []);
+        foreach ($keys as $key) {
+            if (strpos($key, "model_{$modelId}") !== false) {
+                Cache::forget($key);
+            }
         }
     }
 
