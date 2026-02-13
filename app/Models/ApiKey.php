@@ -35,6 +35,26 @@ class ApiKey extends Model
         'last_used_at' => 'datetime',
     ];
 
+    /**
+     * Get the table access mode based on allowed_tables.
+     * Returns 'all' if allowed_tables is empty, 'selected' otherwise.
+     */
+    public function getTableAccessModeAttribute(): string
+    {
+        return empty($this->allowed_tables) ? 'all' : 'selected';
+    }
+
+    /**
+     * Set the table access mode. Clears allowed_tables when set to 'all'.
+     */
+    public function setTableAccessModeAttribute(string $value): void
+    {
+        if ($value === 'all') {
+            $this->allowed_tables = null;
+        }
+        // If 'selected', allowed_tables should be set separately
+    }
+
     protected $hidden = [
         'key', // Never expose the full key in responses
     ];
@@ -79,24 +99,31 @@ class ApiKey extends Model
 
     /**
      * Generate a new API key.
-     * 
-     * @param string $type 'public' or 'secret'
+     *
+     * @param  string  $type  'public' or 'secret'
      * @return string The plain text key (only shown once!)
      */
     public static function generateKey(string $type = 'public'): string
     {
         // 🎯 Fix 19: Digibase Prefixing
         $prefix = $type === 'secret' ? 'dg_sk_' : 'dg_pk_';
-        return $prefix . Str::random(40);
+
+        return $prefix.Str::random(40);
     }
 
     /**
-     * Check if key has a specific scope.
+     * Check if key has a specific permission.
      */
-    public function hasScope(string $scope): bool
+    public function hasPermission(string $permission): bool
     {
-        $scopes = $this->scopes ?? [];
-        return in_array('*', $scopes) || in_array($scope, $scopes);
+        $permissions = $this->permissions ?? [];
+
+        // Empty/null permissions means unrestricted access
+        if (empty($permissions)) {
+            return true;
+        }
+
+        return in_array('*', $permissions) || in_array($permission, $permissions);
     }
 
     /**
@@ -104,15 +131,23 @@ class ApiKey extends Model
      */
     public function canRead(): bool
     {
-        return $this->hasScope('read') || $this->hasScope('*');
+        return $this->hasPermission('read');
     }
 
     /**
-     * Check if key can write data.
+     * Check if key can create data.
      */
-    public function canWrite(): bool
+    public function canCreate(): bool
     {
-        return $this->hasScope('write') || $this->hasScope('*');
+        return $this->hasPermission('create');
+    }
+
+    /**
+     * Check if key can update data.
+     */
+    public function canUpdate(): bool
+    {
+        return $this->hasPermission('update');
     }
 
     /**
@@ -120,7 +155,7 @@ class ApiKey extends Model
      */
     public function canDelete(): bool
     {
-        return $this->hasScope('delete') || $this->hasScope('*');
+        return $this->hasPermission('delete');
     }
 
     /**
@@ -144,7 +179,7 @@ class ApiKey extends Model
      */
     public function isValid(): bool
     {
-        if (!$this->is_active) {
+        if (! $this->is_active) {
             return false;
         }
 
@@ -172,7 +207,8 @@ class ApiKey extends Model
         if (strlen($key) < 10) {
             return str_repeat('*', strlen($key));
         }
-        return substr($key, 0, 6) . '...' . substr($key, -4);
+
+        return substr($key, 0, 6).'...'.substr($key, -4);
     }
 
     /**
@@ -190,7 +226,7 @@ class ApiKey extends Model
     {
         return $query->where(function ($q) {
             $q->whereNull('expires_at')
-              ->orWhere('expires_at', '>', now());
+                ->orWhere('expires_at', '>', now());
         });
     }
 }

@@ -5,16 +5,16 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ApiKeyResource\Pages;
 use App\Models\ApiKey;
 use App\Models\DynamicModel;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Schemas\Components\Section;
+use BackedEnum;
 use Filament\Actions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use BackedEnum;
+use Filament\Forms;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
 use UnitEnum;
 
 class ApiKeyResource extends Resource
@@ -30,6 +30,11 @@ class ApiKeyResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'API & Integration';
 
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationBadge(): ?string
+    {
+        return (string) static::getModel()::where('is_active', true)->count();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -50,10 +55,10 @@ class ApiKeyResource extends Resource
                             ->password()
                             ->revealable()
                             ->readOnly()
-                             ->extraInputAttributes(['readonly' => true])
+                            ->extraInputAttributes(['readonly' => true])
                             ->visible(fn ($record) => $record !== null)
                             ->suffixAction(
-                                Forms\Components\Actions\Action::make('copy')
+                                \Filament\Actions\Action::make('copy')
                                     ->icon('heroicon-m-clipboard')
                                     ->action(fn ($state, $livewire) => $livewire->js("window.navigator.clipboard.writeText('{$state}'); \$tooltip('Copied!', { timeout: 1500 });"))
                             ),
@@ -70,37 +75,37 @@ class ApiKeyResource extends Resource
                             ->helperText('Public keys can only read. Secret keys can create, update, and delete.')
                             ->disabledOn('edit'),
 
-                        Forms\Components\CheckboxList::make('scopes')
-                            ->label('Permissions (Legacy)')
-                            ->options([
-                                'read' => '📖 Read - View & list data',
-                                'write' => '✏️ Write - Create & update data',
-                                'delete' => '🗑️ Delete - Remove data',
-                            ])
-                            ->default(fn ($get) => $get('type') === 'secret'
-                                ? ['read', 'write', 'delete']
-                                : ['read'])
-                            ->columns(3)
-                            ->helperText('Select what this key can do'),
-
                         Forms\Components\CheckboxList::make('permissions')
-                            ->label('Key Capabilities')
+                            ->label('Permissions')
                             ->options([
-                                'read' => 'Read (GET)',
-                                'create' => 'Create (POST)',
-                                'update' => 'Update (PUT/PATCH)',
-                                'delete' => 'Delete (DELETE)',
+                                'read' => 'Read (GET) - View records',
+                                'create' => 'Create (POST) - Add new records',
+                                'update' => 'Update (PUT/PATCH) - Modify records',
+                                'delete' => 'Delete (DELETE) - Remove records',
                             ])
                             ->descriptions([
-                                'read' => 'View records',
+                                'read' => 'View and list data',
                                 'create' => 'Add new records',
                                 'update' => 'Modify existing records',
-                                'delete' => 'Remove records (Destructive)',
+                                'delete' => 'Permanently remove records',
                             ])
                             ->columns(2)
                             ->bulkToggleable()
-                            ->default(['read'])
-                            ->helperText('Granular permissions for this API key. Leave empty for unrestricted access.'),
+                            ->default(fn ($get) => $get('type') === 'secret'
+                                ? ['read', 'create', 'update', 'delete']
+                                : ['read'])
+                            ->helperText('Select what actions this API key can perform. Leave empty for unrestricted access.'),
+
+                        Forms\Components\ToggleButtons::make('table_access_mode')
+                            ->label('Table Access Mode')
+                            ->options([
+                                'all' => 'All Tables',
+                                'selected' => 'Selected Tables Only',
+                            ])
+                            ->default('all')
+                            ->inline()
+                            ->live()
+                            ->helperText('Choose whether this key can access all tables or only specific ones'),
 
                         Forms\Components\CheckboxList::make('allowed_tables')
                             ->label('Allowed Tables')
@@ -111,7 +116,16 @@ class ApiKeyResource extends Resource
                             })
                             ->columns(3)
                             ->gridDirection('column')
-                            ->helperText('Select specific tables to restrict access. Leave empty for ALL tables.'),
+                            ->bulkToggleable()
+                            ->helperText('Select specific tables this key can access. New tables created in the future will NOT be automatically accessible - you\'ll need to edit this key to add them.')
+                            ->visible(fn ($get) => $get('table_access_mode') === 'selected')
+                            ->required(fn ($get) => $get('table_access_mode') === 'selected'),
+
+                        Forms\Components\TagsInput::make('allowed_domains')
+                            ->label('Allowed Domains (CORS)')
+                            ->placeholder('example.com')
+                            ->icon('heroicon-o-globe-alt')
+                            ->helperText('Leave empty to allow all. If set, this key will ONLY accept requests from these domains (browser origins).'),
 
                         Forms\Components\DateTimePicker::make('expires_at')
                             ->label('Expiration Date')
@@ -127,7 +141,7 @@ class ApiKeyResource extends Resource
                             ->maxValue(1000)
                             ->helperText('Maximum API calls per minute'),
                     ])
-                    ->columns(2),
+                    ->columnSpanFull(),
 
                 Section::make('Status')
                     ->schema([
@@ -136,7 +150,8 @@ class ApiKeyResource extends Resource
                             ->default(true)
                             ->helperText('Deactivate to temporarily disable this key'),
                     ])
-                    ->collapsible(),
+                    ->collapsible()
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -241,7 +256,7 @@ class ApiKeyResource extends Resource
                     ->icon(fn ($record) => $record->is_active ? 'heroicon-o-pause' : 'heroicon-o-play')
                     ->color(fn ($record) => $record->is_active ? 'warning' : 'success')
                     ->requiresConfirmation()
-                    ->action(fn ($record) => $record->update(['is_active' => !$record->is_active])),
+                    ->action(fn ($record) => $record->update(['is_active' => ! $record->is_active])),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make()
                     ->label('Revoke'),

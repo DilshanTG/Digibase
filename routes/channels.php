@@ -20,12 +20,12 @@ Broadcast::channel('data.{tableName}', function ($user, $tableName) {
         ->where('is_active', true)
         ->where(function ($q) {
             $q->whereNull('expires_at')
-              ->orWhere('expires_at', '>', now());
+                ->orWhere('expires_at', '>', now());
         })
         ->get();
 
     foreach ($keys as $key) {
-        if ($key->hasScope('read') && $key->hasTableAccess($tableName)) {
+        if ($key->hasPermission('read') && $key->hasTableAccess($tableName)) {
             return true;
         }
     }

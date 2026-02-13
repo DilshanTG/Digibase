@@ -2,9 +2,9 @@
 
 namespace App\Observers;
 
+use App\Events\ModelChanged;
 use App\Models\DynamicModel;
 use App\Models\DynamicRecord;
-use App\Events\ModelChanged;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -40,13 +40,22 @@ class DynamicRecordObserver
 
     public function updated(DynamicRecord $record): void
     {
+        // SAFETY: Prevent Infinite Loop (Webhook recursion)
+        // Lock this record for 5 seconds to prevent self-triggering loops
+        $lockKey = "webhook_lock_{$record->dynamic_model_id}_{$record->id}";
+        if (Cache::has($lockKey)) {
+            return;
+        }
+        Cache::put($lockKey, true, 5); // Lock for 5 seconds
+
         $tableName = $record->getTable();
 
         if ($tableName) {
             // Detect soft delete
-            if ($record->wasChanged('deleted_at') && !empty($record->getAttribute('deleted_at'))) {
+            if ($record->wasChanged('deleted_at') && ! empty($record->getAttribute('deleted_at'))) {
                 $this->broadcastEvent(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
                 $this->clearTableCache($tableName);
+
                 return;
             }
 
@@ -63,6 +72,48 @@ class DynamicRecordObserver
         if ($tableName) {
             $this->broadcastEvent(new ModelChanged($tableName, 'deleted', ['id' => $record->id]));
             $this->clearTableCache($tableName);
+        }
+
+        // 🧹 CLEANUP: Delete associated files from storage
+        $this->deleteAssociatedFiles($record);
+    }
+
+    /**
+     * Delete files associated with this record from storage.
+     * Handles both Spatie Media Library collections and legacy file paths.
+     */
+    protected function deleteAssociatedFiles(DynamicRecord $record): void
+    {
+        try {
+            // 1. Delete Spatie Media Library files
+            if (method_exists($record, 'getMedia')) {
+                $record->clearMediaCollection('files');
+                $record->clearMediaCollection('images');
+            }
+
+            // 2. Delete legacy file paths stored in record data
+            $data = $record->toArray();
+            foreach ($data as $key => $value) {
+                if (is_string($value)) {
+                    // Check for common file path patterns
+                    if (str_starts_with($value, 'uploads/') ||
+                        str_starts_with($value, 'images/') ||
+                        str_starts_with($value, 'files/') ||
+                        str_starts_with($value, 'storage/')) {
+                        $path = str_replace('storage/', '', $value);
+                        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+                            \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Log but don't throw - file cleanup should not break deletion
+            \Illuminate\Support\Facades\Log::warning('File cleanup failed during record deletion', [
+                'record_id' => $record->id,
+                'table' => $record->getTable(),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -105,6 +156,7 @@ class DynamicRecordObserver
         foreach ($data as $key => $value) {
             if (in_array($key, $hiddenFields)) {
                 unset($data[$key]);
+
                 continue;
             }
 
@@ -143,14 +195,14 @@ class DynamicRecordObserver
                     ->with('fields')
                     ->first();
 
-                if (!$model) {
+                if (! $model) {
                     return [];
                 }
 
                 return $model->fields
                     ->where('is_hidden', true)
                     ->pluck('name')
-                    ->map(fn($name) => \Illuminate\Support\Str::snake($name))
+                    ->map(fn ($name) => \Illuminate\Support\Str::snake($name))
                     ->toArray();
             });
         } catch (\Throwable) {

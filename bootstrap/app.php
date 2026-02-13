@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
             \App\Http\Middleware\LogApiActivity::class,
+            \Illuminate\Foundation\Http\Middleware\TrimStrings::class,
+            \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
         ]);
         $middleware->alias([
             'api.key' => \App\Http\Middleware\VerifyApiKey::class,
@@ -26,6 +28,26 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return true;
             }
+
             return $request->expectsJson();
+        });
+
+        // 🛡️ API: Friendly 404 responses
+        $exceptions->render(function (\Illuminate\Database\Eloquent\ModelNotFoundException $e, $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'error' => 'Resource Not Found',
+                    'message' => 'The requested record ID does not exist.',
+                ], 404);
+            }
+        });
+
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'error' => 'Endpoint Not Found',
+                    'message' => 'Check your URL path and HTTP method.',
+                ], 404);
+            }
         });
     })->create();

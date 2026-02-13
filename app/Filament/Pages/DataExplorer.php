@@ -4,50 +4,51 @@ namespace App\Filament\Pages;
 
 use App\Models\DynamicModel;
 use App\Models\DynamicRecord;
-use Filament\Pages\Page;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
-use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use BackedEnum;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use UnitEnum;
-use Filament\Forms\Components\FileUpload;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Notifications\Notification;
 
 class DataExplorer extends Page implements HasTable
 {
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-table-cells';
+
     protected static string|UnitEnum|null $navigationGroup = 'Data Engine';
+
     protected static ?int $navigationSort = 2;
+
     protected static ?string $title = 'Data Explorer';
+
     protected static bool $shouldRegisterNavigation = true;
 
     protected string $view = 'filament.pages.data-explorer';
 
     public ?string $tableName = null;
+
     public ?DynamicModel $dynamicModel = null;
-    public bool $isSpreadsheet = false;
 
     public function mount(): void
     {
@@ -57,11 +58,12 @@ class DataExplorer extends Page implements HasTable
         // 1. Validation: Check if table exists
         $model = DynamicModel::where('table_name', $table)->first();
 
-        if (!$model) {
+        if (! $model) {
             // Safe Fallback: Redirect to the first available table
             $first = DynamicModel::first();
             if ($first) {
                 $this->redirect(static::getUrl(['table' => $first->table_name]));
+
                 return;
             } else {
                 // Absolute Empty State
@@ -69,13 +71,13 @@ class DataExplorer extends Page implements HasTable
                     ->title('No tables found. Please create a Model first.')
                     ->warning()
                     ->send();
+
                 return;
             }
         }
 
         $this->tableName = $table;
         $this->dynamicModel = $model;
-        $this->isSpreadsheet = (bool) request()->query('spreadsheet');
     }
 
     protected function getHeaderActions(): array
@@ -88,19 +90,15 @@ class DataExplorer extends Page implements HasTable
                 ->url(fn () => route('filament.admin.pages.api-documentation', ['model' => $this->dynamicModel?->id]))
                 ->openUrlInNewTab()
                 ->visible(fn () => $this->dynamicModel?->id !== null),
-            Action::make('toggleSpreadsheet')
-                ->label($this->isSpreadsheet ? 'Standard View' : 'Spreadsheet View')
-                ->icon($this->isSpreadsheet ? 'heroicon-o-table-cells' : 'heroicon-o-squares-2x2')
-                ->color($this->isSpreadsheet ? 'gray' : 'primary')
-                ->action(fn () => $this->isSpreadsheet = ! $this->isSpreadsheet)
-                ->visible(fn () => $this->dynamicModel?->id !== null),
 
             Action::make('downloadTemplate')
                 ->label('Download Template')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
-                    if (!$this->dynamicModel) return;
+                    if (! $this->dynamicModel) {
+                        return;
+                    }
 
                     $headers = $this->dynamicModel->fields->pluck('name')->toArray();
 
@@ -112,7 +110,7 @@ class DataExplorer extends Page implements HasTable
                         $handle = fopen('php://output', 'w');
                         fputcsv($handle, $headers);
                         fclose($handle);
-                    }, $this->dynamicModel->table_name . '-template.csv');
+                    }, $this->dynamicModel->table_name.'-template.csv');
                 })
                 ->visible(fn () => $this->dynamicModel !== null),
             ExportAction::make()
@@ -122,7 +120,7 @@ class DataExplorer extends Page implements HasTable
                 ->exports([
                     \pxlrbt\FilamentExcel\Exports\ExcelExport::make()
                         ->fromTable()
-                        ->withFilename($this->dynamicModel?->id . '-' . date('Y-m-d') . '.xlsx'),
+                        ->withFilename($this->dynamicModel?->id.'-'.date('Y-m-d').'.xlsx'),
                 ])
                 ->visible(fn () => $this->dynamicModel?->id !== null),
         ];
@@ -131,7 +129,7 @@ class DataExplorer extends Page implements HasTable
     public function table(Table $table): Table
     {
         // 🛡️ Guard Clause: Prevent white screen if state is lost
-        if (!$this->tableName || !$this->dynamicModel) {
+        if (! $this->tableName || ! $this->dynamicModel) {
             return $table->columns([])->emptyStateHeading('No table selected');
         }
 
@@ -144,7 +142,7 @@ class DataExplorer extends Page implements HasTable
             return $table
                 ->query(DynamicModel::query()->where('id', 0))
                 ->emptyStateHeading("Database table '{$dynamicModel->table_name}' not found.")
-                ->emptyStateDescription("Please go back to Table Builder and ensure the table is properly created.")
+                ->emptyStateDescription('Please go back to Table Builder and ensure the table is properly created.')
                 ->columns([
                     TextColumn::make('status')
                         ->getStateUsing(fn () => 'Missing Table')
@@ -168,12 +166,12 @@ class DataExplorer extends Page implements HasTable
                 $index++;
                 $column = null;
 
-                // 🎯 Category B: Image Rendering & Boolean Polish
-                if (in_array($field->type, ['file', 'image'])) {
+                // 🎯 SMART COLUMN RENDERING
+                if (in_array($field->type, ['file', 'image']) || in_array($field->name, ['image', 'photo', 'avatar', 'logo', 'thumbnail'])) {
                     $column = SpatieMediaLibraryImageColumn::make($field->name)
                         ->collection($field->type === 'image' ? 'images' : 'files')
                         ->conversion('thumb')
-                        ->circular(false)
+                        ->circular($field->name === 'avatar')
                         ->stacked()
                         ->limit(3);
                 } elseif ($field->type === 'boolean') {
@@ -183,6 +181,14 @@ class DataExplorer extends Page implements HasTable
                         ->falseIcon('heroicon-o-x-circle')
                         ->trueColor('success')
                         ->falseColor('danger');
+                } elseif ($field->name === 'color' || $field->name === 'hex') {
+                    $column = \Filament\Tables\Columns\ColorColumn::make($field->name)
+                        ->label($field->display_name ?? Str::headline($field->name));
+                } elseif ($field->type === 'text' || $field->type === 'long_text') {
+                    $column = TextColumn::make($field->name)
+                        ->limit(50)
+                        ->tooltip(fn ($state) => $state)
+                        ->copyable();
                 } else {
                     $column = TextColumn::make($field->name)
                         ->limit(50)
@@ -193,6 +199,7 @@ class DataExplorer extends Page implements HasTable
                             if (is_string($state) && Str::startsWith($state, 'http') && preg_match('/\.(jpg|jpeg|png|webp|gif|svg)$/i', $state)) {
                                 return '<img src="'.$state.'" class="h-10 w-10 object-cover rounded shadow-sm border border-gray-200 dark:border-gray-700 hover:scale-150 transition-transform cursor-zoom-in overflow-hidden" />';
                             }
+
                             return $state;
                         });
 
@@ -208,14 +215,14 @@ class DataExplorer extends Page implements HasTable
                     ->toggleable(isToggledHiddenByDefault: $index > 5);
             }
         }
-        
+
         $columns[] = TextColumn::make('created_at')
             ->label('Created')
             ->since()
             ->sortable()
             ->toggleable()
             ->color('gray');
-            
+
         $columns[] = TextColumn::make('updated_at')
             ->label('Updated')
             ->since()
@@ -226,24 +233,25 @@ class DataExplorer extends Page implements HasTable
         // 4. Configure the Table
         return $table
             ->query(function () use ($dynamicModel) {
-                $query = (new DynamicRecord())->setDynamicTable($dynamicModel->table_name)->newQuery();
-                
+                $query = (new DynamicRecord)->setDynamicTable($dynamicModel->table_name)->newQuery();
+
                 if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
                     $query->whereNull('deleted_at');
                 }
-                
+
                 return $query;
             })
             ->columns($columns)
-            ->heading($dynamicModel->display_name . " Data")
+            ->heading($dynamicModel->display_name.' Data')
             ->headerActions([
                 CreateAction::make()
                     ->schema($this->getDynamicForm($dynamicModel))
                     ->using(function (array $data) use ($dynamicModel) {
-                        $record = new DynamicRecord();
+                        $record = new DynamicRecord;
                         $record->setDynamicTable($dynamicModel->table_name);
                         $record->fill($data);
                         $record->save();
+
                         return $record;
                     }),
 
@@ -264,23 +272,25 @@ class DataExplorer extends Page implements HasTable
                         $tableName = $dynamicModel->table_name;
 
                         // 1. Open File
-                        $path = storage_path('app/' . $data['attachment']);
+                        $path = storage_path('app/'.$data['attachment']);
 
-                        if (!file_exists($path)) {
+                        if (! file_exists($path)) {
                             Notification::make()
                                 ->title('Error: File not found')
                                 ->danger()
                                 ->send();
+
                             return;
                         }
 
                         $handle = fopen($path, 'r');
 
-                        if (!$handle) {
+                        if (! $handle) {
                             Notification::make()
                                 ->title('Error opening file')
                                 ->danger()
                                 ->send();
+
                             return;
                         }
 
@@ -288,7 +298,7 @@ class DataExplorer extends Page implements HasTable
                             // 2. Read Header
                             $header = fgetcsv($handle, 1000, ',');
 
-                            if (!$header) {
+                            if (! $header) {
                                 throw new \Exception('CSV file is empty or invalid');
                             }
 
@@ -304,8 +314,21 @@ class DataExplorer extends Page implements HasTable
                             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                                 $rowCount++;
 
-                                // Map header to row values
-                                if (count($header) == count($row)) {
+                                try {
+                                    // 🛡️ Fault-Tolerant Row Matching
+                                    // Normalize row length to match header (pad short rows, trim long rows)
+                                    $headerCount = count($header);
+                                    $rowCount_actual = count($row);
+
+                                    if ($rowCount_actual < $headerCount) {
+                                        // Missing columns: Pad with empty strings
+                                        $row = array_pad($row, $headerCount, '');
+                                    } elseif ($rowCount_actual > $headerCount) {
+                                        // Too many columns: Truncate excess
+                                        $row = array_slice($row, 0, $headerCount);
+                                    }
+
+                                    // Safe array_combine with matching lengths
                                     $record = array_combine($header, $row);
 
                                     // Filter only allowed columns
@@ -323,8 +346,11 @@ class DataExplorer extends Page implements HasTable
                                     }
 
                                     $batch[] = $cleanRecord;
-                                } else {
+                                } catch (\ValueError|\Exception $e) {
+                                    // Skip malformed row silently
                                     $errorRows[] = $rowCount;
+
+                                    continue;
                                 }
 
                                 // Chunk Insert (Prevent Memory Overload)
@@ -335,7 +361,7 @@ class DataExplorer extends Page implements HasTable
                             }
 
                             // Insert Remaining
-                            if (!empty($batch)) {
+                            if (! empty($batch)) {
                                 DB::table($tableName)->insert($batch);
                             }
 
@@ -343,7 +369,7 @@ class DataExplorer extends Page implements HasTable
                             @unlink($path); // Cleanup
 
                             $message = count($errorRows) > 0
-                                ? "Imported {$rowCount} records with " . count($errorRows) . " skipped rows"
+                                ? "Imported {$rowCount} records with ".count($errorRows).' skipped rows'
                                 : "Successfully imported {$rowCount} records";
 
                             Notification::make()
@@ -393,7 +419,7 @@ class DataExplorer extends Page implements HasTable
                             });
 
                             fclose($handle);
-                        }, $tableName . '_export_' . now()->format('Y-m-d_H-i') . '.csv');
+                        }, $tableName.'_export_'.now()->format('Y-m-d_H-i').'.csv');
                     }),
             ])
             ->actions([
@@ -403,24 +429,26 @@ class DataExplorer extends Page implements HasTable
                         $record->setTable($dynamicModel->table_name);
                         $record->fill($data);
                         $record->save();
+
                         return $record;
                     }),
                 DeleteAction::make()
                     ->using(function ($record) use ($dynamicModel) {
                         $record->setTable($dynamicModel->table_name);
-                        
+
                         if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
                             DB::table($dynamicModel->table_name)
                                 ->where('id', $record->id)
                                 ->update(['deleted_at' => now()]);
-                            
+
                             Notification::make()
                                 ->title('Record moved to Recycle Bin')
                                 ->success()
                                 ->send();
+
                             return;
                         }
-                        
+
                         $record->delete();
                     }),
             ])
@@ -430,7 +458,7 @@ class DataExplorer extends Page implements HasTable
                         ->using(function (\Illuminate\Support\Collection $records) use ($dynamicModel) {
                             foreach ($records as $record) {
                                 $record->setTable($dynamicModel->table_name);
-                                
+
                                 if ($dynamicModel->has_soft_deletes && Schema::hasColumn($dynamicModel->table_name, 'deleted_at')) {
                                     DB::table($dynamicModel->table_name)
                                         ->where('id', $record->id)
@@ -439,7 +467,7 @@ class DataExplorer extends Page implements HasTable
                                     $record->delete();
                                 }
                             }
-                            
+
                             Notification::make()
                                 ->title($dynamicModel->has_soft_deletes ? 'Selected records moved to Recycle Bin' : 'Selected records deleted')
                                 ->success()
@@ -463,7 +491,7 @@ class DataExplorer extends Page implements HasTable
                     'boolean' => Toggle::make($field->name),
                     'date' => DatePicker::make($field->name),
                     'datetime' => DateTimePicker::make($field->name),
-                    
+
                     // 🎯 UPGRADED: Use Spatie Media Library for files
                     'file' => SpatieMediaLibraryFileUpload::make($field->name)
                         ->collection('files')
@@ -475,7 +503,7 @@ class DataExplorer extends Page implements HasTable
                         ->previewable()
                         ->reorderable()
                         ->disk('digibase_storage'),
-                    
+
                     // 🎯 UPGRADED: Use Spatie Media Library for images with optimization
                     'image' => SpatieMediaLibraryFileUpload::make($field->name)
                         ->collection('images')
@@ -496,7 +524,7 @@ class DataExplorer extends Page implements HasTable
                         ->reorderable()
                         ->disk('digibase_storage')
                         ->conversion('preview'),
-                    
+
                     default => TextInput::make($field->name),
                 };
 
@@ -505,6 +533,7 @@ class DataExplorer extends Page implements HasTable
                     ->required($field->is_required);
             }
         }
+
         return $fields;
     }
 }

@@ -3,34 +3,57 @@
 namespace App\Filament\Pages;
 
 use App\Models\DynamicModel;
-use Filament\Pages\Page;
-use Filament\Tables;
+use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
+use Filament\Infolists\Components\KeyValueEntry;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Schemas\Components\Section as SchemaSection;
+use Filament\Schemas\Concerns\InteractsWithSchemas;
+use Filament\Schemas\Contracts\HasSchemas;
+use Filament\Support\ArrayRecord;
+use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Contracts\Pagination\Paginator;
-use Illuminate\Support\Collection;
-use Filament\Support\ArrayRecord;
-use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\DB;
-use BackedEnum;
-use UnitEnum;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use UnitEnum;
 
-class RecycleBin extends Page implements HasTable
+class RecycleBin extends Page implements HasSchemas, HasTable
 {
+    use InteractsWithSchemas;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-trash';
+
     protected static string|UnitEnum|null $navigationGroup = 'Monitoring & Logs';
+
     protected static ?string $title = 'Recycle Bin';
+
     protected string $view = 'filament.pages.recycle-bin';
+
     protected static ?int $navigationSort = 99;
 
+    public static function getNavigationBadge(): ?string
+    {
+        $count = 0;
+        $models = DynamicModel::where('has_soft_deletes', true)
+            ->where('is_active', true)
+            ->get();
 
+        foreach ($models as $model) {
+            if (DB::getSchemaBuilder()->hasTable($model->table_name) &&
+                DB::getSchemaBuilder()->hasColumn($model->table_name, 'deleted_at')) {
+                $count += DB::table($model->table_name)->whereNotNull('deleted_at')->count();
+            }
+        }
+
+        return $count > 0 ? (string) $count : null;
+    }
 
     public function table(Table $table): Table
     {
@@ -56,6 +79,33 @@ class RecycleBin extends Page implements HasTable
                     ->since(),
             ])
             ->actions([
+                Action::make('view')
+                    ->label('View')
+                    ->icon('heroicon-m-eye')
+                    ->color('gray')
+                    ->modalHeading('Preview Deleted Record')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->schema(function (?array $record): array {
+                        if (! $record) {
+                            return [];
+                        }
+
+                        // Fetch the full record data
+                        $data = (array) DB::table($record['table_name'])
+                            ->where('id', $record['record_id'])
+                            ->first();
+
+                        return [
+                            SchemaSection::make('Record Data')
+                                ->description('Raw values from '.$record['table_name'])
+                                ->schema([
+                                    KeyValueEntry::make('details')
+                                        ->label('')
+                                        ->state($data),
+                                ]),
+                        ];
+                    }),
                 Action::make('restore')
                     ->label('Restore')
                     ->icon('heroicon-m-arrow-uturn-left')
@@ -64,9 +114,11 @@ class RecycleBin extends Page implements HasTable
                     ->modalHeading('Restore Record')
                     ->modalDescription('Are you sure you want to restore this record?')
                     ->action(function (?array $record) {
-                        if (!$record) return;
+                        if (! $record) {
+                            return;
+                        }
                         $updateData = ['deleted_at' => null];
-                        
+
                         // Only try to update updated_at if the table supports it
                         if (isset($record['has_timestamps']) && $record['has_timestamps']) {
                             $updateData['updated_at'] = now();
@@ -90,7 +142,9 @@ class RecycleBin extends Page implements HasTable
                     ->modalHeading('Permanently Delete Record')
                     ->modalDescription('This action cannot be undone. Are you sure?')
                     ->action(function (?array $record) {
-                        if (!$record) return;
+                        if (! $record) {
+                            return;
+                        }
                         DB::table($record['table_name'])
                             ->where('id', $record['record_id'])
                             ->delete();
@@ -113,7 +167,7 @@ class RecycleBin extends Page implements HasTable
                         ->action(function (Collection $records) {
                             foreach ($records as $record) {
                                 $updateData = ['deleted_at' => null];
-                                
+
                                 if (isset($record['has_timestamps']) && $record['has_timestamps']) {
                                     $updateData['updated_at'] = now();
                                 }
@@ -165,7 +219,7 @@ class RecycleBin extends Page implements HasTable
         return (string) $record->getKey();
     }
 
-    public function resolveTableRecord(?string $key): array | \Illuminate\Database\Eloquent\Model | null
+    public function resolveTableRecord(?string $key): array|\Illuminate\Database\Eloquent\Model|null
     {
         if ($key === null) {
             return null;
@@ -219,11 +273,11 @@ class RecycleBin extends Page implements HasTable
         $deletedRecords = collect();
 
         foreach ($models as $model) {
-            if (!DB::getSchemaBuilder()->hasTable($model->table_name)) {
+            if (! DB::getSchemaBuilder()->hasTable($model->table_name)) {
                 continue;
             }
 
-            if (!DB::getSchemaBuilder()->hasColumn($model->table_name, 'deleted_at')) {
+            if (! DB::getSchemaBuilder()->hasColumn($model->table_name, 'deleted_at')) {
                 continue;
             }
 
@@ -232,8 +286,8 @@ class RecycleBin extends Page implements HasTable
                 ->select('id as record_id', 'deleted_at')
                 ->get()
                 ->map(fn ($item) => [
-                    ArrayRecord::getKeyName() => $model->table_name . '_' . $item->record_id,
-                    'id' => $model->table_name . '_' . $item->record_id, // Keep id for backward compatibility/clarity
+                    ArrayRecord::getKeyName() => $model->table_name.'_'.$item->record_id,
+                    'id' => $model->table_name.'_'.$item->record_id, // Keep id for backward compatibility/clarity
                     'record_id' => $item->record_id,
                     'deleted_at' => $item->deleted_at,
                     'table_name' => $model->table_name,
@@ -247,6 +301,4 @@ class RecycleBin extends Page implements HasTable
         // Key by the record's unique ID for selection logic
         return $deletedRecords->sortByDesc('deleted_at')->keyBy(ArrayRecord::getKeyName());
     }
-
-
 }

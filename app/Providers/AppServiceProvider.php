@@ -2,27 +2,26 @@
 
 namespace App\Providers;
 
-use Filament\Facades\Filament;
-use Filament\Support\Colors\Color;
+use App\Models\DynamicRecord;
+use App\Observers\DynamicRecordObserver;
+use App\Settings\GeneralSettings;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
+use Filament\Facades\Filament;
+use Filament\Support\Colors\Color;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\ServiceProvider;
-use App\Models\DynamicRecord;
-use App\Observers\DynamicRecordObserver;
 use Laravel\Pulse\Facades\Pulse;
-use Spatie\Health\Facades\Health;
-use Spatie\Health\Checks\Checks\OptimizedAppCheck;
+use Spatie\Health\Checks\Checks\DatabaseCheck;
 use Spatie\Health\Checks\Checks\DebugModeCheck;
 use Spatie\Health\Checks\Checks\EnvironmentCheck;
-use Spatie\Health\Checks\Checks\DatabaseCheck;
+use Spatie\Health\Checks\Checks\OptimizedAppCheck;
 use Spatie\Health\Checks\Checks\UsedDiskSpaceCheck;
-use App\Settings\GeneralSettings;
-use App\Models\SystemSetting;
+use Spatie\Health\Facades\Health;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -40,6 +39,9 @@ class AppServiceProvider extends ServiceProvider
 
         // 🧠 CENTRAL NERVOUS SYSTEM: Register the Observer
         DynamicRecord::observe(DynamicRecordObserver::class);
+
+        // 👻 ORPHAN CLEANUP: Register DynamicModel Observer
+        \App\Models\DynamicModel::observe(\App\Observers\DynamicModelObserver::class);
 
         // 🔒 SECURITY: Log Viewer Access Control
         $this->configureLogViewerSecurity();
@@ -89,7 +91,7 @@ class AppServiceProvider extends ServiceProvider
 
         $checks = [
             DebugModeCheck::new()
-                ->expectedToBe(!$isProduction),
+                ->expectedToBe(! $isProduction),
             EnvironmentCheck::new()
                 ->expectEnvironment(app()->environment()),
             DatabaseCheck::new(),
@@ -109,7 +111,9 @@ class AppServiceProvider extends ServiceProvider
     private function configureBranding(): void
     {
         try {
-            if (!function_exists('db_config')) return;
+            if (! function_exists('db_config')) {
+                return;
+            }
 
             // Branding
             $appName = db_config('branding.site_name');
@@ -158,7 +162,9 @@ class AppServiceProvider extends ServiceProvider
     {
         try {
             // Early return if settings table doesn't exist yet
-            if (!Schema::hasTable('spatie_settings')) return;
+            if (! Schema::hasTable('spatie_settings')) {
+                return;
+            }
 
             $settings = app(GeneralSettings::class);
 
@@ -166,20 +172,20 @@ class AppServiceProvider extends ServiceProvider
             try {
                 if (Schema::hasTable('system_settings') && \Illuminate\Support\Facades\DB::table('system_settings')->count() > 0 && \Illuminate\Support\Facades\DB::table('spatie_settings')->where('group', 'general')->doesntExist()) {
                     $legacy = \Illuminate\Support\Facades\DB::table('system_settings')->pluck('value', 'key');
-                    
+
                     $settings->storage_driver = $legacy['storage_driver'] ?? 'local';
                     $settings->aws_access_key_id = $legacy['aws_access_key_id'] ?? null;
-                    
+
                     try {
-                        $settings->aws_secret_access_key = isset($legacy['aws_secret_access_key']) 
-                            ? Crypt::decryptString($legacy['aws_secret_access_key']) 
+                        $settings->aws_secret_access_key = isset($legacy['aws_secret_access_key'])
+                            ? Crypt::decryptString($legacy['aws_secret_access_key'])
                             : null;
                     } catch (\Exception $e) {
                         // If decryption fails, likely stored as plain text or invalid. Keep raw or null.
-                        // Assuming raw if decryption fails is risky but better than crash. 
-                        // Actually, if it fails, let's leave it null or try raw? 
+                        // Assuming raw if decryption fails is risky but better than crash.
+                        // Actually, if it fails, let's leave it null or try raw?
                         // Let's fallback to null safely to allow admin to reset it.
-                        \Illuminate\Support\Facades\Log::warning("Failed to decrypt aws_secret_access_key during migration: " . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::warning('Failed to decrypt aws_secret_access_key during migration: '.$e->getMessage());
                         $settings->aws_secret_access_key = null;
                     }
 
@@ -188,18 +194,18 @@ class AppServiceProvider extends ServiceProvider
                     $settings->aws_endpoint = $legacy['aws_endpoint'] ?? null;
                     $settings->aws_use_path_style = $legacy['aws_use_path_style'] ?? 'false';
                     $settings->aws_url = $legacy['aws_url'] ?? null;
-                    
+
                     $settings->save();
-                    
+
                     // Drop the old table to complete the migration
                     Schema::dropIfExists('system_settings');
                 }
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Settings migration failed: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error('Settings migration failed: '.$e->getMessage());
             }
 
             $driver = $settings->storage_driver ?? 'local';
-            
+
             // Build the configuration for our dynamic 'digibase_storage' disk
             $storageConfig = [
                 'driver' => $driver,
@@ -237,7 +243,7 @@ class AppServiceProvider extends ServiceProvider
             config(['livewire.temporary_file_upload.disk' => 'digibase_storage']);
 
         } catch (\Exception $e) {
-             \Illuminate\Support\Facades\Log::error("Failed to configure storage: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Failed to configure storage: '.$e->getMessage());
         }
     }
 }

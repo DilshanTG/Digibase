@@ -4,10 +4,10 @@ namespace App\Filament\Resources\DynamicModelResource\Pages;
 
 use App\Filament\Resources\DynamicModelResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 class EditDynamicModel extends EditRecord
 {
@@ -21,6 +21,13 @@ class EditDynamicModel extends EditRecord
                     if (Schema::hasTable($record->table_name)) {
                         Schema::dropIfExists($record->table_name);
                     }
+                })
+                ->after(function () {
+                    Notification::make()
+                        ->success()
+                        ->title('Table Deleted Successfully')
+                        ->body('The table and all its data have been permanently removed.')
+                        ->send();
                 }),
         ];
     }

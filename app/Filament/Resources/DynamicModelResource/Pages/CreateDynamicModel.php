@@ -3,10 +3,11 @@
 namespace App\Filament\Resources\DynamicModelResource\Pages;
 
 use App\Filament\Resources\DynamicModelResource;
-use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 class CreateDynamicModel extends CreateRecord
 {
@@ -40,6 +41,7 @@ class CreateDynamicModel extends CreateRecord
                 ->title('Table Exists')
                 ->body("The table '{$tableName}' already exists. Only metadata was saved.")
                 ->send();
+
             return;
         }
 
@@ -81,7 +83,7 @@ class CreateDynamicModel extends CreateRecord
                 ->title('Table Created Successfully')
                 ->body("Database table '{$tableName}' is now ready!")
                 ->actions([
-                    \Filament\Notifications\Actions\Action::make('explore')
+                    Action::make('explore')
                         ->label('Go to Data Explorer')
                         ->url(\App\Filament\Pages\DataExplorer::getUrl(['table' => $tableName]))
                         ->button()

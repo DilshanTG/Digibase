@@ -1,76 +1,438 @@
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 
 @theme {
-    /* PocketBase-inspired Enterprise Palette */
-    --color-primary-50: #eef2ff;
-    --color-primary-100: #e0e7ff;
-    --color-primary-200: #c7d2fe;
-    --color-primary-300: #a5b4fc;
-    --color-primary-400: #818cf8;
-    --color-primary-500: #6366f1;
-    /* PocketBase Indigo */
-    --color-primary-600: #4f46e5;
-    --color-primary-700: #4338ca;
-    --color-primary-800: #3730a3;
-    --color-primary-900: #312e81;
-    --color-primary-950: #1e1b4b;
+    /* ============================================
+       SUPABASE DESIGN SYSTEM - COLOR PALETTE
+       ============================================ */
+    
+    /* Primary Brand - Supabase Green */
+    --color-primary-50: #c8f4e4;
+    --color-primary-100: #96e8c9;
+    --color-primary-200: #65dbae;
+    --color-primary-300: #33cf93;
+    --color-primary-400: #3ecf8e;
+    --color-primary-500: #3ecf8e;
+    --color-primary-600: #2ea87a;
+    --color-primary-700: #1f825f;
+    --color-primary-800: #0f5b45;
+    --color-primary-900: #003d2f;
+    --color-primary-950: #002a20;
 
-    --color-gray-50: #f8fafc;
-    --color-gray-100: #f1f5f9;
-    --color-gray-200: #e2e8f0;
-    --color-gray-300: #cbd5e1;
-    --color-gray-400: #94a3b8;
-    --color-gray-500: #64748b;
-    --color-gray-600: #475569;
-    --color-gray-700: #334155;
-    --color-gray-800: #1e293b;
-    --color-gray-900: #0f172a;
-    --color-gray-950: #020617;
+    /* Gray Scale - Dark Theme */
+    --color-gray-50: #1c1c1c;
+    --color-gray-100: #232323;
+    --color-gray-200: #2e2e2e;
+    --color-gray-300: #383838;
+    --color-gray-400: #4a4a4a;
+    --color-gray-500: #6b6b6b;
+    --color-gray-600: #a0a0a0;
+    --color-gray-700: #c5c5c5;
+    --color-gray-800: #e0e0e0;
+    --color-gray-900: #ededed;
+    --color-gray-950: #ffffff;
+
+    /* Danger - Red */
+    --color-danger-50: #3d1f1f;
+    --color-danger-100: #522424;
+    --color-danger-200: #6e2c2c;
+    --color-danger-300: #8f2e2e;
+    --color-danger-400: #b82e2e;
+    --color-danger-500: #ff6b6b;
+    --color-danger-600: #ff8585;
+    --color-danger-700: #ffa0a0;
+    
+    /* Warning - Orange */
+    --color-warning-50: #3d2e1f;
+    --color-warning-100: #523a24;
+    --color-warning-200: #6e4a2c;
+    --color-warning-300: #8f5f2e;
+    --color-warning-400: #b87a2e;
+    --color-warning-500: #ffa726;
+    --color-warning-600: #ffb84d;
+    --color-warning-700: #ffcc80;
+    
+    /* Success - Green (Same as brand) */
+    --color-success-50: #c8f4e4;
+    --color-success-100: #96e8c9;
+    --color-success-200: #65dbae;
+    --color-success-300: #33cf93;
+    --color-success-400: #3ecf8e;
+    --color-success-500: #3ecf8e;
+    --color-success-600: #2ea87a;
+    --color-success-700: #1f825f;
 }
 
-/* 🎨 ENTERPRISE POLISH OVERRIDES */
+/* ============================================
+   SUPABASE THEME OVERRIDES
+   ============================================ */
 
-/* Compact Tables */
-.fi-ta-content {
-    @apply divide-y divide-gray-200 dark:divide-white/5;
+/* Dark Background Base */
+body, .fi-body {
+    @apply bg-[#0f0f0f] text-[#ededed];
 }
 
-.fi-ta-record-picker-label,
-.fi-ta-cell {
-    @apply py-3 px-4;
+/* Sidebar - Dark with subtle border */
+.fi-sidebar {
+    @apply bg-[#0f0f0f] border-r border-[#2e2e2e];
 }
 
-/* Smooth Transitions */
-button,
-input,
-a,
+.fi-sidebar-header {
+    @apply bg-[#0f0f0f] border-b border-[#2e2e2e];
+}
+
+.fi-sidebar-group-label {
+    @apply text-[#6b6b6b] text-[11px] font-semibold uppercase tracking-wider;
+}
+
 .fi-sidebar-item {
-    @apply transition-all duration-200 ease-in-out;
+    @apply text-[#c5c5c5] rounded-md mx-2 transition-all duration-150;
 }
 
-/* Glassmorphism for Topbar */
+.fi-sidebar-item:hover {
+    @apply bg-[#2e2e2e] text-[#ededed];
+}
+
+.fi-sidebar-item-active {
+    @apply bg-[#232323] text-[#3ecf8e];
+}
+
+.fi-sidebar-item-active .fi-sidebar-item-icon {
+    @apply text-[#3ecf8e];
+}
+
+.fi-sidebar-item-icon {
+    @apply text-[#6b6b6b];
+}
+
+/* Main Content Area */
+.fi-main {
+    @apply bg-[#0f0f0f];
+}
+
+/* Topbar */
 .fi-topbar {
-    @apply border-b border-gray-200/50 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-gray-900/80;
+    @apply bg-[#0f0f0f] border-b border-[#2e2e2e] h-16;
 }
 
-/* Sharper Borders & Subtle Shadows */
-.fi-section,
+/* Sections & Cards */
+.fi-section {
+    @apply bg-[#1c1c1c] border border-[#2e2e2e] rounded-lg shadow-sm;
+}
+
+.fi-section-header {
+    @apply bg-[#1c1c1c] border-b border-[#2e2e2e] px-6 py-4;
+}
+
 .fi-card {
-    @apply border-gray-200/60 shadow-sm ring-1 ring-gray-950/5 dark:border-white/10 dark:bg-gray-900 dark:ring-white/10;
-    border-radius: 0.5rem;
+    @apply bg-[#1c1c1c] border border-[#2e2e2e] rounded-lg shadow-sm transition-all duration-150;
 }
 
-/* High-Contrast Inputs */
+.fi-card:hover {
+    @apply border-[#383838] shadow-md;
+}
+
+/* Buttons - Supabase Style */
+.fi-btn {
+    @apply rounded-md font-medium transition-all duration-150 h-9;
+}
+
+.fi-btn-primary {
+    @apply bg-[#3ecf8e] text-[#0f0f0f] border-none;
+}
+
+.fi-btn-primary:hover {
+    @apply bg-[#2ea87a];
+}
+
+.fi-btn-secondary {
+    @apply bg-[#2e2e2e] text-[#ededed] border border-[#383838];
+}
+
+.fi-btn-secondary:hover {
+    @apply bg-[#383838] border-[#4a4a4a];
+}
+
+.fi-btn-danger {
+    @apply bg-[#b82e2e] text-white border-none;
+}
+
+.fi-btn-danger:hover {
+    @apply bg-[#ff6b6b];
+}
+
+.fi-btn-ghost {
+    @apply bg-transparent text-[#c5c5c5] border-none;
+}
+
+.fi-btn-ghost:hover {
+    @apply bg-[#2e2e2e] text-[#ededed];
+}
+
+/* Form Inputs */
 .fi-input-wrapper {
-    @apply border-gray-300 shadow-none focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:border-white/10;
+    @apply bg-[#232323] border-[#383838] rounded-md transition-all duration-150;
 }
 
-/* 🎯 Fix 3: Global Font Polish */
-.fi-ta-header-cell-label {
-    @apply font-bold tracking-tight text-gray-900 dark:text-gray-100 uppercase text-xs;
+.fi-input-wrapper:hover {
+    @apply border-[#4a4a4a];
 }
 
-/* 🎯 Fix 25: Sticky Save Management */
-.fi-form-actions.fi-sticky {
-    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur shadow-lg border-t border-gray-200 dark:border-white/10;
+.fi-input-wrapper:focus-within {
+    @apply border-[#3ecf8e] ring-2 ring-[#3ecf8e]/20;
+}
+
+.fi-input {
+    @apply bg-transparent text-[#ededed] placeholder-[#6b6b6b];
+}
+
+/* Select/Dropdown */
+.fi-select-trigger {
+    @apply bg-[#232323] border-[#383838] text-[#ededed];
+}
+
+.fi-select-options {
+    @apply bg-[#232323] border-[#2e2e2e] rounded-md shadow-lg;
+}
+
+.fi-select-option {
+    @apply text-[#ededed];
+}
+
+.fi-select-option:hover {
+    @apply bg-[#2e2e2e];
+}
+
+/* Tables */
+.fi-ta {
+    @apply bg-[#1c1c1c] border border-[#2e2e2e] rounded-lg overflow-hidden;
+}
+
+.fi-ta-header {
+    @apply bg-[#232323] border-b border-[#2e2e2e];
+}
+
+.fi-ta-header-cell {
+    @apply text-[#c5c5c5] font-semibold text-[13px] uppercase tracking-wide px-4 py-3;
+}
+
+.fi-ta-row {
+    @apply bg-[#1c1c1c] border-b border-[#383838] transition-colors duration-150;
+}
+
+.fi-ta-row:hover {
+    @apply bg-[#232323];
+}
+
+.fi-ta-row:nth-child(even) {
+    @apply bg-[#161616];
+}
+
+.fi-ta-cell {
+    @apply text-[#ededed] px-4 py-3 text-sm;
+}
+
+/* Badges */
+.fi-badge {
+    @apply rounded-md text-xs font-medium px-2 py-1 h-6 inline-flex items-center;
+}
+
+.fi-badge-primary {
+    @apply bg-[#3ecf8e] text-[#0f0f0f];
+}
+
+.fi-badge-secondary {
+    @apply bg-[#2e2e2e] text-[#c5c5c5];
+}
+
+.fi-badge-success {
+    @apply bg-[#3ecf8e]/15 text-[#3ecf8e];
+}
+
+.fi-badge-danger {
+    @apply bg-[#6e2c2c] text-white;
+}
+
+.fi-badge-warning {
+    @apply bg-[#6e4a2c] text-[#0f0f0f];
+}
+
+/* Tabs */
+.fi-tabs {
+    @apply bg-[#232323] rounded-md p-1;
+}
+
+.fi-tab {
+    @apply text-[#6b6b6b] rounded-sm px-4 py-2 font-medium transition-all duration-150;
+}
+
+.fi-tab:hover {
+    @apply text-[#c5c5c5] bg-[#2e2e2e];
+}
+
+.fi-tab-active {
+    @apply text-[#ededed] bg-[#1c1c1c] shadow-sm;
+}
+
+/* Alerts */
+.fi-alert {
+    @apply rounded-lg border px-6 py-4;
+}
+
+.fi-alert-success {
+    @apply bg-[#3ecf8e]/10 border-[#3ecf8e]/30 text-[#3ecf8e];
+}
+
+.fi-alert-danger {
+    @apply bg-[#3d1f1f] border-[#6e2c2c] text-[#ff6b6b];
+}
+
+.fi-alert-warning {
+    @apply bg-[#3d2e1f] border-[#6e4a2c] text-[#ffa726];
+}
+
+/* Pagination */
+.fi-pagination-item {
+    @apply min-w-[32px] h-8 flex items-center justify-center bg-[#232323] border border-[#383838] rounded-md text-[#c5c5c5] text-sm transition-all duration-150;
+}
+
+.fi-pagination-item:hover {
+    @apply bg-[#2e2e2e] border-[#4a4a4a];
+}
+
+.fi-pagination-item-active {
+    @apply bg-[#3ecf8e] border-[#3ecf8e] text-[#0f0f0f];
+}
+
+/* Modals */
+.fi-modal-content {
+    @apply bg-[#1c1c1c] border border-[#2e2e2e] rounded-xl shadow-2xl;
+}
+
+.fi-modal-header {
+    @apply px-6 py-4 border-b border-[#2e2e2e];
+}
+
+.fi-modal-title {
+    @apply text-[#ededed] font-semibold text-lg;
+}
+
+.fi-modal-footer {
+    @apply px-6 py-4 border-t border-[#2e2e2e] flex justify-end gap-2;
+}
+
+/* Menus */
+.fi-dropdown-panel {
+    @apply bg-[#232323] border border-[#2e2e2e] rounded-lg shadow-lg p-1;
+}
+
+.fi-dropdown-item {
+    @apply text-[#c5c5c5] rounded-md px-4 py-2 transition-all duration-100;
+}
+
+.fi-dropdown-item:hover {
+    @apply bg-[#2e2e2e] text-[#ededed];
+}
+
+/* Empty States */
+.fi-empty-state {
+    @apply text-center py-16 px-6;
+}
+
+.fi-empty-state-icon {
+    @apply text-[#6b6b6b] mb-4;
+}
+
+.fi-empty-state-title {
+    @apply text-[#ededed] font-semibold text-base mb-2;
+}
+
+.fi-empty-state-description {
+    @apply text-[#6b6b6b] text-sm;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1c1c1c;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #383838;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Status Indicators */
+.sb-status-dot {
+    @apply w-2 h-2 rounded-full;
+}
+
+.sb-status-dot-online {
+    @apply bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e];
+}
+
+.sb-status-dot-offline {
+    @apply bg-[#6b6b6b];
+}
+
+.sb-status-dot-warning {
+    @apply bg-[#ffa726];
+}
+
+.sb-status-dot-error {
+    @apply bg-[#ff6b6b];
+}
+
+/* Code Blocks */
+.sb-code-block {
+    @apply bg-[#0f0f0f] border border-[#2e2e2e] rounded-md p-4 font-mono text-[13px] overflow-x-auto;
+}
+
+/* Metric Cards */
+.sb-metric-card {
+    @apply bg-[#1c1c1c] border border-[#2e2e2e] rounded-lg p-6;
+}
+
+.sb-metric-value {
+    @apply text-3xl font-semibold text-[#ededed] mb-1;
+}
+
+.sb-metric-label {
+    @apply text-sm text-[#6b6b6b];
+}
+
+/* Animations */
+@keyframes pulse-brand {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(62, 207, 142, 0);
+    }
+}
+
+.sb-pulse {
+    animation: pulse-brand 2s ease-in-out infinite;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

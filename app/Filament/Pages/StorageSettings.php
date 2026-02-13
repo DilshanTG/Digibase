@@ -16,9 +16,13 @@ class StorageSettings extends Page implements HasForms
     use InteractsWithForms;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cloud';
+
     protected static string|\UnitEnum|null $navigationGroup = 'Settings & Access';
+
     protected static ?string $title = 'Storage Configuration';
+
     protected static ?string $navigationLabel = 'Storage';
+
     protected static ?string $slug = 'settings/storage';
 
     protected string $view = 'filament.pages.storage-settings';
@@ -117,15 +121,13 @@ class StorageSettings extends Page implements HasForms
         $data = $this->form->getState();
 
         $settings->storage_driver = $data['storage_driver'];
-        
-        if ($data['storage_driver'] === 's3') {
-            $settings->aws_access_key_id = $data['aws_access_key_id'];
-            $settings->aws_secret_access_key = $data['aws_secret_access_key'];
-            $settings->aws_default_region = $data['aws_default_region'];
-            $settings->aws_bucket = $data['aws_bucket'];
-            $settings->aws_endpoint = $data['endpoint'];
-            $settings->aws_use_path_style = $data['use_path_style_endpoint'];
-        }
+        $settings->aws_access_key_id = $data['aws_access_key_id'] ?? null;
+        $settings->aws_secret_access_key = $data['aws_secret_access_key'] ?? null;
+        $settings->aws_default_region = $data['aws_default_region'] ?? 'us-east-1';
+        $settings->aws_bucket = $data['aws_bucket'] ?? null;
+        $settings->aws_endpoint = $data['endpoint'] ?? null;
+        $settings->aws_use_path_style = $data['use_path_style_endpoint'] ?? 'false';
+        $settings->aws_url = $settings->aws_url ?? null;
 
         $settings->save();
 
